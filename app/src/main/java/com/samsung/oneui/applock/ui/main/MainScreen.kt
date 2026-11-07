@@ -18,28 +18,35 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AdminPanelSettings
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
+import androidx.compose.material.icons.rounded.Password
 import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.samsung.oneui.applock.data.model.AppInfo
+import com.samsung.oneui.applock.data.model.AuthType
 import com.samsung.oneui.applock.data.model.LockSettings
 import com.samsung.oneui.applock.data.model.NotificationMaskMode
 import com.samsung.oneui.applock.data.model.RelockPolicy
@@ -61,6 +69,7 @@ import com.samsung.oneui.applock.ui.components.OneUIExpandingHeader
 import com.samsung.oneui.applock.ui.components.OneUISearchBar
 import com.samsung.oneui.applock.ui.components.OneUISwitch
 import com.samsung.oneui.applock.ui.theme.OneUIBlue
+import com.samsung.oneui.applock.ui.theme.OneUIGreen
 import com.samsung.oneui.applock.ui.theme.OneUIIconRadius
 import com.samsung.oneui.applock.ui.theme.OneUIPillRadius
 import com.samsung.oneui.applock.ui.theme.OneUITheme
@@ -73,6 +82,7 @@ fun MainScreen(
     onEnableNotificationListener: () -> Unit,
     onRequestPostNotifications: () -> Unit,
     onEnableBatteryOptimization: () -> Unit,
+    onEnableDeviceAdmin: () -> Unit,
     onOpenRestrictedSettingsHelp: () -> Unit
 ) {
     val settings by viewModel.settings.collectAsState()
@@ -82,13 +92,30 @@ fun MainScreen(
     val permissionState by viewModel.permissionState.collectAsState()
     val lockedCount by viewModel.lockedCount.collectAsState()
 
+    var showPinDialog by remember { mutableStateOf(false) }
+    var showDonationDialog by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
-    // Determine collapsing state based on scroll offset
     val isTopBarCollapsed by remember {
         derivedStateOf {
             listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 140
         }
+    }
+
+    if (showPinDialog) {
+        CustomPinDialog(
+            onDismiss = { showPinDialog = false },
+            onPinSet = { pin ->
+                viewModel.setCustomPin(pin)
+                showPinDialog = false
+            }
+        )
+    }
+
+    if (showDonationDialog) {
+        DonationDialog(
+            onDismiss = { showDonationDialog = false }
+        )
     }
 
     Scaffold(
@@ -107,10 +134,10 @@ fun MainScreen(
                 .padding(paddingValues),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            // Samsung One UI Large Expanding Header
+            // One UI Large Header
             item(key = "header") {
                 val subtitle = if (settings.masterLockEnabled) {
-                    if (lockedCount == 1) "1 application locked" else "$lockedCount applications locked"
+                    if (lockedCount == 1) "1 app protected" else "$lockedCount apps protected"
                 } else {
                     "Protection paused"
                 }
@@ -121,7 +148,7 @@ fun MainScreen(
                 )
             }
 
-            // Permissions Card (if missing permissions)
+            // Permissions & Security Onboarding
             item(key = "permissions_card") {
                 PermissionSetupCard(
                     state = permissionState,
@@ -129,17 +156,18 @@ fun MainScreen(
                     onEnableNotificationListener = onEnableNotificationListener,
                     onRequestPostNotifications = onRequestPostNotifications,
                     onEnableBatteryOptimization = onEnableBatteryOptimization,
+                    onEnableDeviceAdmin = onEnableDeviceAdmin,
                     onOpenRestrictedSettingsHelp = onOpenRestrictedSettingsHelp
                 )
             }
 
-            // Global Controls Grouped Card
-            item(key = "global_controls") {
+            // Section 1: Security & Credentials
+            item(key = "security_credentials_section") {
                 Text(
-                    text = "GLOBAL PROTECTION",
+                    text = "SECURITY & CREDENTIALS",
                     style = OneUITypography.titleSmall,
                     color = OneUITheme.extraColors.subtitleColor,
-                    modifier = Modifier.padding(start = 16.dp, bottom = 8.dp, top = 6.dp)
+                    modifier = Modifier.padding(start = 16.dp, bottom = 8.dp, top = 4.dp)
                 )
 
                 OneUICard {
@@ -147,6 +175,7 @@ fun MainScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clickable { viewModel.setMasterLock(!settings.masterLockEnabled) }
                             .padding(horizontal = 20.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -171,7 +200,7 @@ fun MainScreen(
                                 color = OneUITheme.extraColors.textPrimary
                             )
                             Text(
-                                text = if (settings.masterLockEnabled) "App locking is active" else "App locking is paused",
+                                text = if (settings.masterLockEnabled) "App protection active" else "App protection paused",
                                 style = OneUITypography.bodySmall,
                                 color = OneUITheme.extraColors.textSecondary
                             )
@@ -184,10 +213,291 @@ fun MainScreen(
 
                     OneUIDivider(insetStart = false)
 
-                    // Master Notification Masking Switch
+                    // Authentication Method Selector
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 12.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(OneUITheme.extraColors.pillBackground, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Key,
+                                    contentDescription = null,
+                                    tint = OneUITheme.extraColors.textPrimary,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Unlock Method",
+                                    style = OneUITypography.bodyLarge,
+                                    color = OneUITheme.extraColors.textPrimary
+                                )
+                                Text(
+                                    text = when (settings.authType) {
+                                        AuthType.SYSTEM_CREDENTIAL -> "Samsung Device Lock (Fingerprint/PIN)"
+                                        AuthType.CUSTOM_PIN -> "Dedicated App PIN (Custom)"
+                                    },
+                                    style = OneUITypography.bodySmall,
+                                    color = OneUITheme.extraColors.textSecondary
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OneUIFilterChip(
+                                selected = settings.authType == AuthType.SYSTEM_CREDENTIAL,
+                                label = "Phone Screen Lock",
+                                onClick = { viewModel.setAuthType(AuthType.SYSTEM_CREDENTIAL) }
+                            )
+                            OneUIFilterChip(
+                                selected = settings.authType == AuthType.CUSTOM_PIN,
+                                label = if (settings.isCustomPinSet) "Custom App PIN" else "Set Custom PIN",
+                                onClick = {
+                                    if (!settings.isCustomPinSet) {
+                                        showPinDialog = true
+                                    } else {
+                                        viewModel.setAuthType(AuthType.CUSTOM_PIN)
+                                    }
+                                }
+                            )
+                        }
+
+                        // Sub-options for Custom PIN
+                        if (settings.authType == AuthType.CUSTOM_PIN && settings.isCustomPinSet) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Use Biometrics with App PIN",
+                                    style = OneUITypography.bodyMedium,
+                                    color = OneUITheme.extraColors.textPrimary
+                                )
+                                OneUISwitch(
+                                    checked = settings.useBiometricWithCustomPin,
+                                    onCheckedChange = { viewModel.setUseBiometricWithCustomPin(it) }
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(6.dp))
+                            OutlinedButton(
+                                onClick = { showPinDialog = true },
+                                shape = RoundedCornerShape(OneUIPillRadius),
+                                modifier = Modifier.height(36.dp)
+                            ) {
+                                Text("Change Custom PIN", fontSize = 13.sp)
+                            }
+                        }
+                    }
+
+                    OneUIDivider(insetStart = false)
+
+                    // Anti-Uninstall Device Admin Protection
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clickable { onEnableDeviceAdmin() }
+                            .padding(horizontal = 20.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(
+                                    if (permissionState.isDeviceAdminActive) OneUIGreen.copy(alpha = 0.12f)
+                                    else OneUITheme.extraColors.pillBackground,
+                                    CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.AdminPanelSettings,
+                                contentDescription = null,
+                                tint = if (permissionState.isDeviceAdminActive) OneUIGreen else OneUITheme.extraColors.textPrimary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Anti-Uninstall Protection",
+                                style = OneUITypography.bodyLarge,
+                                color = OneUITheme.extraColors.textPrimary
+                            )
+                            Text(
+                                text = if (permissionState.isDeviceAdminActive) "Active (Device Admin enabled)" else "Prevents unauthorized app uninstallation",
+                                style = OneUITypography.bodySmall,
+                                color = if (permissionState.isDeviceAdminActive) OneUIGreen else OneUITheme.extraColors.textSecondary
+                            )
+                        }
+                        OneUISwitch(
+                            checked = permissionState.isDeviceAdminActive,
+                            onCheckedChange = { onEnableDeviceAdmin() }
+                        )
+                    }
+
+                    OneUIDivider(insetStart = false)
+
+                    // Hide Locked Apps from Launcher & Searches
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.setHideLockedApps(!settings.isHideLockedAppsEnabled) }
+                            .padding(horizontal = 20.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(OneUITheme.extraColors.pillBackground, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.VisibilityOff,
+                                contentDescription = null,
+                                tint = OneUITheme.extraColors.textPrimary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Hide Locked Apps from Launcher & Search",
+                                style = OneUITypography.bodyLarge,
+                                color = OneUITheme.extraColors.textPrimary
+                            )
+                            Text(
+                                text = if (settings.isHideLockedAppsEnabled) "Locked apps hidden from home screen & search" else "Hides locked apps from home, app drawer & search",
+                                style = OneUITypography.bodySmall,
+                                color = OneUITheme.extraColors.textSecondary
+                            )
+                        }
+                        OneUISwitch(
+                            checked = settings.isHideLockedAppsEnabled,
+                            onCheckedChange = { viewModel.setHideLockedApps(it) }
+                        )
+                    }
+
+                    OneUIDivider(insetStart = false)
+
+                    // Guard Google Play Store & Settings
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.setGuardPlayStoreAndSettings(!settings.isGuardPlayStoreAndSettings) }
+                            .padding(horizontal = 20.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(OneUITheme.extraColors.pillBackground, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Security,
+                                contentDescription = null,
+                                tint = OneUITheme.extraColors.textPrimary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Guard Play Store & Settings",
+                                style = OneUITypography.bodyLarge,
+                                color = OneUITheme.extraColors.textPrimary
+                            )
+                            Text(
+                                text = "Blocks opening locked apps via Play Store search or settings tampering",
+                                style = OneUITypography.bodySmall,
+                                color = OneUITheme.extraColors.textSecondary
+                            )
+                        }
+                        OneUISwitch(
+                            checked = settings.isGuardPlayStoreAndSettings,
+                            onCheckedChange = { viewModel.setGuardPlayStoreAndSettings(it) }
+                        )
+                    }
+
+                    OneUIDivider(insetStart = false)
+
+                    // Self-Lock Protection (Play Store / Settings)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.setSelfLock(!settings.isSelfLockEnabled) }
+                            .padding(horizontal = 20.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(OneUITheme.extraColors.pillBackground, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Password,
+                                contentDescription = null,
+                                tint = OneUITheme.extraColors.textPrimary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Lock App Lock Itself",
+                                style = OneUITypography.bodyLarge,
+                                color = OneUITheme.extraColors.textPrimary
+                            )
+                            Text(
+                                text = "Requires authentication if opened from Play Store or Settings",
+                                style = OneUITypography.bodySmall,
+                                color = OneUITheme.extraColors.textSecondary
+                            )
+                        }
+                        OneUISwitch(
+                            checked = settings.isSelfLockEnabled,
+                            onCheckedChange = { viewModel.setSelfLock(it) }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+            }
+
+            // Section 2: Protection Rules
+            item(key = "protection_rules_section") {
+                Text(
+                    text = "PROTECTION RULES",
+                    style = OneUITypography.titleSmall,
+                    color = OneUITheme.extraColors.subtitleColor,
+                    modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
+                )
+
+                OneUICard {
+                    // Hide Notification Content
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = settings.masterLockEnabled) {
+                                viewModel.setMasterNotificationMasking(!settings.masterNotificationMasking)
+                            }
                             .padding(horizontal = 20.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -227,7 +537,6 @@ fun MainScreen(
                     AnimatedVisibility(visible = settings.masterNotificationMasking && settings.masterLockEnabled) {
                         Column {
                             OneUIDivider(insetStart = true)
-                            // Notification Masking Scope Selector
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -259,7 +568,7 @@ fun MainScreen(
 
                     OneUIDivider(insetStart = false)
 
-                    // Re-lock Timing Policy Selector
+                    // Re-lock Timing Policy
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -320,7 +629,68 @@ fun MainScreen(
                 Spacer(modifier = Modifier.height(18.dp))
             }
 
-            // Search Bar
+            // Section: Support & Donations
+            item(key = "donation_card") {
+                Text(
+                    text = "SUPPORT DEVELOPMENT",
+                    style = OneUITypography.titleSmall,
+                    color = OneUITheme.extraColors.subtitleColor,
+                    modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
+                )
+
+                OneUICard {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showDonationDialog = true }
+                            .padding(horizontal = 20.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(Color(0xFFFF3B30).copy(alpha = 0.12f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Favorite,
+                                contentDescription = null,
+                                tint = Color(0xFFFF3B30),
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Donate via UPI / Samsung Pay",
+                                style = OneUITypography.bodyLarge,
+                                color = OneUITheme.extraColors.textPrimary
+                            )
+                            Text(
+                                text = "peter.0419@pingpay • Tap to view QR & pay",
+                                style = OneUITypography.bodySmall,
+                                color = OneUITheme.extraColors.textSecondary
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .background(OneUIBlue.copy(alpha = 0.12f), RoundedCornerShape(OneUIPillRadius))
+                                .padding(horizontal = 14.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = "Donate",
+                                color = OneUIBlue,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+            }
+
+            // Section 3: Applications
             item(key = "search_bar") {
                 OneUISearchBar(
                     query = searchQuery,
@@ -329,7 +699,6 @@ fun MainScreen(
                 )
             }
 
-            // Apps List Header
             item(key = "apps_list_header") {
                 Row(
                     modifier = Modifier
@@ -346,7 +715,6 @@ fun MainScreen(
                 }
             }
 
-            // Loading state
             if (isLoading) {
                 item(key = "loading") {
                     Box(
@@ -378,7 +746,6 @@ fun MainScreen(
                     }
                 }
             } else {
-                // Grouped Apps Container inside OneUICard
                 item(key = "apps_container") {
                     OneUICard {
                         apps.forEachIndexed { index, app ->
@@ -417,12 +784,10 @@ private fun AppListItem(
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 44.dp Squircle App Icon
         AppSquircleIcon(icon = app.icon, appName = app.appName)
 
         Spacer(modifier = Modifier.width(14.dp))
 
-        // App Details
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = app.appName,
@@ -438,7 +803,6 @@ private fun AppListItem(
             )
         }
 
-        // Per-app Notification Masking Toggle Icon (visible if locked and per-app mode is enabled)
         if (app.isLocked && settings.masterNotificationMasking && settings.notificationMaskMode == NotificationMaskMode.PER_APP) {
             IconButton(
                 onClick = { onMaskToggled(!app.isNotificationMasked) },
@@ -454,7 +818,6 @@ private fun AppListItem(
             Spacer(modifier = Modifier.width(6.dp))
         }
 
-        // One UI Pill Switch
         OneUISwitch(
             checked = app.isLocked,
             onCheckedChange = onLockToggled,

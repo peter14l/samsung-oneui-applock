@@ -1,25 +1,27 @@
 package com.samsung.oneui.applock.data.pref
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.samsung.oneui.applock.data.model.AuthType
 import com.samsung.oneui.applock.data.model.LockSettings
 import com.samsung.oneui.applock.data.model.NotificationMaskMode
 import com.samsung.oneui.applock.data.model.RelockPolicy
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
+import com.samsung.oneui.applock.util.PermissionHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.security.MessageDigest
+import java.security.SecureRandom
 import java.util.concurrent.ConcurrentHashMap
 
 class EncryptedPreferencesManager private constructor(context: Context) {
 
     private val appContext = context.applicationContext
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val prefs: SharedPreferences by lazy {
         try {
@@ -57,6 +59,10 @@ class EncryptedPreferencesManager private constructor(context: Context) {
         loadInitialState()
     }
 
+    fun refreshState() {
+        loadInitialState()
+    }
+
     private fun loadInitialState() {
         val lockedSet = prefs.getStringSet(KEY_LOCKED_PACKAGES, emptySet())?.toSet() ?: emptySet()
         _lockedPackagesFlow.value = lockedSet
@@ -80,11 +86,34 @@ class EncryptedPreferencesManager private constructor(context: Context) {
             RelockPolicy.SCREEN_OFF
         }
 
+        val authTypeName = prefs.getString(KEY_AUTH_TYPE, AuthType.SYSTEM_CREDENTIAL.name)
+        val authType = try {
+            AuthType.valueOf(authTypeName ?: AuthType.SYSTEM_CREDENTIAL.name)
+        } catch (e: Exception) {
+            AuthType.SYSTEM_CREDENTIAL
+        }
+
+        val customPinHash = prefs.getString(KEY_CUSTOM_PIN_HASH, null)
+        val isCustomPinSet = !customPinHash.isNullOrBlank()
+        val useBiometricWithCustomPin = prefs.getBoolean(KEY_USE_BIOMETRIC_CUSTOM_PIN, false)
+        val isDeviceAdmin = PermissionHelper.isDeviceAdminActive(appContext)
+
+        val isHideLockedApps = prefs.getBoolean(KEY_HIDE_LOCKED_APPS, false)
+        val isGuardPlayStore = prefs.getBoolean(KEY_GUARD_PLAY_STORE, true)
+        val isSelfLock = prefs.getBoolean(KEY_SELF_LOCK, true)
+
         _settingsFlow.value = LockSettings(
             masterLockEnabled = masterLock,
             masterNotificationMasking = masterMasking,
             notificationMaskMode = maskMode,
-            relockPolicy = relockPolicy
+            relockPolicy = relockPolicy,
+            authType = authType,
+            isCustomPinSet = isCustomPinSet,
+            useBiometricWithCustomPin = useBiometricWithCustomPin,
+            isDeviceAdminEnabled = isDeviceAdmin,
+            isHideLockedAppsEnabled = isHideLockedApps,
+            isGuardPlayStoreAndSettings = isGuardPlayStore,
+            isSelfLockEnabled = isSelfLock
         )
     }
 
@@ -128,6 +157,10 @@ class EncryptedPreferencesManager private constructor(context: Context) {
         }
         prefs.edit().putStringSet(KEY_LOCKED_PACKAGES, current).apply()
         _lockedPackagesFlow.value = current
+
+        if (_settingsFlow.value.isHideLockedAppsEnabled && PermissionHelper.isDeviceOwner(appContext)) {
+            PermissionHelper.setApplicationHidden(appContext, packageName, locked)
+        }
     }
 
     fun setPackageNotificationMasked(packageName: String, masked: Boolean) {
@@ -161,6 +194,97 @@ class EncryptedPreferencesManager private constructor(context: Context) {
         _settingsFlow.value = _settingsFlow.value.copy(relockPolicy = policy)
     }
 
+    fun setAuthType(type: AuthType) {
+        prefs.edit().putString(KEY_AUTH_TYPE, type.name).apply()
+        _settingsFlow.value = _settingsFlow.value.copy(authType = type)
+    }
+
+    fun setUseBiometricWithCustomPin(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_USE_BIOMETRIC_CUSTOM_PIN, enabled).apply()
+        _settingsFlow.value = _settingsFlow.value.copy(useBiometricWithCustomPin = enabled)
+    }
+
+    fun setCustomPin(pin: String): Boolean {
+        if (pin.length < 4) return false
+        val salt = getOrCreateSalt()
+        val hash = hashPin(pin, salt)
+        prefs.edit().putString(KEY_CUSTOM_PIN_HASH, hash).apply()
+        _settingsFlow.value = _settingsFlow.value.copy(
+            isCustomPinSet = true,
+            authType = AuthType.CUSTOM_PIN
+        )
+        return true
+    }
+
+    fun verifyCustomPin(pin: String): Boolean {
+        val storedHash = prefs.getString(KEY_CUSTOM_PIN_HASH, null) ?: return false
+        val salt = getOrCreateSalt()
+        val computedHash = hashPin(pin, salt)
+        return storedHash == computedHash
+    }
+
+    fun removeCustomPin() {
+        prefs.edit().remove(KEY_CUSTOM_PIN_HASH).apply()
+        _settingsFlow.value = _settingsFlow.value.copy(
+            isCustomPinSet = false,
+            authType = AuthType.SYSTEM_CREDENTIAL,
+            useBiometricWithCustomPin = false
+        )
+    }
+
+    fun setHideLockedApps(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_HIDE_LOCKED_APPS, enabled).apply()
+        _settingsFlow.value = _settingsFlow.value.copy(isHideLockedAppsEnabled = enabled)
+        // If Device Owner is active, hide/unhide locked packages at system level
+        if (PermissionHelper.isDeviceOwner(appContext)) {
+            val locked = _lockedPackagesFlow.value
+            for (pkg in locked) {
+                PermissionHelper.setApplicationHidden(appContext, pkg, enabled)
+            }
+        }
+    }
+
+    fun setGuardPlayStoreAndSettings(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_GUARD_PLAY_STORE, enabled).apply()
+        _settingsFlow.value = _settingsFlow.value.copy(isGuardPlayStoreAndSettings = enabled)
+        val current = _lockedPackagesFlow.value.toMutableSet()
+        val playStorePkg = "com.android.vending"
+        val settingsPkg = "com.android.settings"
+        if (enabled) {
+            current.add(playStorePkg)
+            current.add(settingsPkg)
+        } else {
+            current.remove(playStorePkg)
+            current.remove(settingsPkg)
+        }
+        prefs.edit().putStringSet(KEY_LOCKED_PACKAGES, current).apply()
+        _lockedPackagesFlow.value = current
+    }
+
+    fun setSelfLock(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_SELF_LOCK, enabled).apply()
+        _settingsFlow.value = _settingsFlow.value.copy(isSelfLockEnabled = enabled)
+    }
+
+    private fun getOrCreateSalt(): String {
+        var salt = prefs.getString(KEY_PIN_SALT, null)
+        if (salt.isNullOrEmpty()) {
+            val random = SecureRandom()
+            val bytes = ByteArray(16)
+            random.nextBytes(bytes)
+            salt = bytes.joinToString("") { "%02x".format(it) }
+            prefs.edit().putString(KEY_PIN_SALT, salt).apply()
+        }
+        return salt
+    }
+
+    private fun hashPin(pin: String, salt: String): String {
+        val md = MessageDigest.getInstance("SHA-256")
+        md.update(salt.toByteArray(Charsets.UTF_8))
+        val digest = md.digest(pin.toByteArray(Charsets.UTF_8))
+        return digest.joinToString("") { "%02x".format(it) }
+    }
+
     companion object {
         private const val TAG = "EncryptedPrefs"
         private const val PREFS_FILE_NAME = "samsung_oneui_applock_secure_prefs"
@@ -172,6 +296,13 @@ class EncryptedPreferencesManager private constructor(context: Context) {
         private const val KEY_MASTER_NOTIFICATION_MASKING = "key_master_notification_masking"
         private const val KEY_NOTIFICATION_MASK_MODE = "key_notification_mask_mode"
         private const val KEY_RELOCK_POLICY = "key_relock_policy"
+        private const val KEY_AUTH_TYPE = "key_auth_type"
+        private const val KEY_CUSTOM_PIN_HASH = "key_custom_pin_hash"
+        private const val KEY_PIN_SALT = "key_pin_salt"
+        private const val KEY_USE_BIOMETRIC_CUSTOM_PIN = "key_use_biometric_custom_pin"
+        private const val KEY_HIDE_LOCKED_APPS = "key_hide_locked_apps"
+        private const val KEY_GUARD_PLAY_STORE = "key_guard_play_store"
+        private const val KEY_SELF_LOCK = "key_self_lock"
 
         @Volatile
         private var INSTANCE: EncryptedPreferencesManager? = null

@@ -111,6 +111,42 @@ class AppLockRepository(private val context: Context) {
         prefsManager.setRelockPolicy(policy)
     }
 
+    fun setAuthType(type: com.samsung.oneui.applock.data.model.AuthType) {
+        prefsManager.setAuthType(type)
+    }
+
+    fun setUseBiometricWithCustomPin(enabled: Boolean) {
+        prefsManager.setUseBiometricWithCustomPin(enabled)
+    }
+
+    fun setCustomPin(pin: String): Boolean {
+        return prefsManager.setCustomPin(pin)
+    }
+
+    fun verifyCustomPin(pin: String): Boolean {
+        return prefsManager.verifyCustomPin(pin)
+    }
+
+    fun removeCustomPin() {
+        prefsManager.removeCustomPin()
+    }
+
+    fun setHideLockedApps(enabled: Boolean) {
+        prefsManager.setHideLockedApps(enabled)
+    }
+
+    fun setGuardPlayStoreAndSettings(enabled: Boolean) {
+        prefsManager.setGuardPlayStoreAndSettings(enabled)
+    }
+
+    fun setSelfLock(enabled: Boolean) {
+        prefsManager.setSelfLock(enabled)
+    }
+
+    fun refreshState() {
+        prefsManager.refreshState()
+    }
+
     fun unlockSession(packageName: String) {
         prefsManager.unlockPackageSession(packageName)
     }

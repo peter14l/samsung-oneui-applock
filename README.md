@@ -6,15 +6,24 @@ A production-ready, zero-bloat native Android App Locker built in 100% Kotlin an
 
 ## ✨ Features & Highlights
 
-- **Native Samsung Biometric Authentication:** Utilizes `androidx.biometric.BiometricPrompt` with `BIOMETRIC_STRONG or BIOMETRIC_WEAK or DEVICE_CREDENTIAL` to natively trigger Samsung's Fingerprint scanner, Face Unlock, and device PIN/Pattern/Password without custom PIN pads.
-- **One UI Design System:**
+- **Dual Authentication Engines:**
+  - **Samsung System Credentials:** Seamlessly invokes native Samsung Face, Fingerprint, and device PIN/Pattern/Password via `androidx.biometric.BiometricPrompt`.
+  - **App-Specific Custom PIN:** Allows setting a dedicated 4–6 digit custom secret PIN with salted SHA-256 encryption. Supports biometric bypass while falling back directly to your app PIN (instead of the phone's lock code).
+- **Stealth Mode (Launcher & Finder Hiding):**
+  - Completely hides the application icon from Samsung One UI Home, app drawer, and device Finder searches via dynamic `<activity-alias>` management.
+  - Re-open at any time by dialing **`*#*#1234#*#*`** in the Samsung Phone dialer.
+- **Self-Lock & Anti-Bypass Protection:**
+  - The App Lock settings dashboard itself is protected by an impenetrable authentication gate. Even if searched up and opened via Google Play Store, Samsung Galaxy Store, or system Settings, unauthorized users cannot access settings or disable protection.
+- **Anti-Uninstall Protection (Device Administrator):**
+  - Integrates with Android's `DevicePolicyManager`. Once activated, unauthorized users cannot uninstall App Lock without deactivating Device Administrator privileges first.
+- **One UI 6 / 7 Flagship Design System:**
   - True AMOLED Black (`#010101`) dark theme and Samsung Light (`#F6F6F8`).
   - Signature Samsung Blue accent (`#0381FE`).
   - `26.dp` grouped card containers with `1.dp` hairline dividers (inset `68.dp`).
   - Collapsible One UI Expanding App Bar (top 35% title header with one-handed reachable bottom 65%).
-  - Squircle `44.dp` app icons and pill-shaped toggles.
+  - Squircle `44.dp` app icons and authentic Samsung lock screen keypad (`76.dp` circular keys, letters, animated dots, and haptic feedback).
 - **App Launch Interception Engine:** Battery-optimized `AccessibilityService` listening strictly to `TYPE_WINDOW_STATE_CHANGED` with in-memory `Set<String>` synced via Kotlin Flow for $O(1)$ instantaneous interception.
-- **Window Blur & Graceful Android 11 Fallback:** Leverages Android 12+ (API 31+) hardware `window.setBackgroundBlurRadius(80)` with graceful degradation on Android 11 (API 30) using high-opacity frosted glass (`Color.Black.copy(0.88f)` / `Color.White.copy(0.92f)`), preventing `NoSuchMethodError` crashes.
+- **100% Opaque Solid Privacy Backdrop:** Guarantees 0% visual leakage of sensitive underlying application content (e.g. WhatsApp chats, bank accounts, photos), backed by `FLAG_SECURE` against screenshots and Recent Apps previews.
 - **Notification Guard & Content Masking:** Intercepts notifications for locked applications using `NotificationListenerService`, suppressing sensitive previews and replacing them with One UI masked alerts (*"Contents hidden • Unlock app to view"*), preserving underlying `PendingIntent`s.
 - **Hardware-Backed Encryption:** Stores lock preferences and session states inside `EncryptedSharedPreferences` via Jetpack Security (AES-256 GCM + AES-256 SIV).
 - **Split-per-ABI Signed Builds:** Native ABI splits for `arm64-v8a`, `armeabi-v7a`, `x86_64`, and Universal APKs with automated GitHub Releases CI/CD.
@@ -23,13 +32,13 @@ A production-ready, zero-bloat native Android App Locker built in 100% Kotlin an
 
 ## 📱 Compatibility Matrix
 
-| OS Version | One UI Version | API Level | Native Blur | Notification Runtime Perm |
+| OS Version | One UI Version | API Level | Native Biometrics | Notification Runtime Perm |
 |---|---|---|---|---|
-| **Android 11** | One UI 3.0 / 3.1 / 3.5 | API 30 | Frosted Fallback Surface | Auto-Granted via Channel |
-| **Android 12 / 12L** | One UI 4.0 / 4.1 / 4.1.1 | API 31 / 32 | Native Window Blur (80px) | Auto-Granted via Channel |
-| **Android 13** | One UI 5.0 / 5.1 / 5.1.1 | API 33 | Native Window Blur (80px) | `POST_NOTIFICATIONS` Runtime Check |
-| **Android 14** | One UI 6.0 / 6.1 / 6.1.1 | API 34 | Native Window Blur (80px) | `POST_NOTIFICATIONS` Runtime Check |
-| **Android 15+** | One UI 7.0+ | API 35 | Native Window Blur (80px) | Predictive Back & SDK 35 Insets |
+| **Android 11** | One UI 3.0 / 3.1 / 3.5 | API 30 | BiometricPrompt + Fallback | Auto-Granted via Channel |
+| **Android 12 / 12L** | One UI 4.0 / 4.1 / 4.1.1 | API 31 / 32 | BiometricPrompt + Custom PIN | Auto-Granted via Channel |
+| **Android 13** | One UI 5.0 / 5.1 / 5.1.1 | API 33 | BiometricPrompt + Custom PIN | `POST_NOTIFICATIONS` Runtime Check |
+| **Android 14** | One UI 6.0 / 6.1 / 6.1.1 | API 34 | BiometricPrompt + Custom PIN | `POST_NOTIFICATIONS` Runtime Check |
+| **Android 15+** | One UI 7.0+ | API 35 | BiometricPrompt + Custom PIN | Predictive Back & SDK 35 Insets |
 
 ---
 
@@ -42,7 +51,7 @@ Download the signed APK matching your phone's architecture from the [GitHub Rele
 
 ### 2. Enable Accessibility Service (App Interception)
 1. Open the App Lock app.
-2. Under **Required Permissions**, tap **Enable** next to *App Interception Service*.
+2. Under **Required Permissions & Security**, tap **Enable** next to *App Interception Service*.
 3. Tap **Installed apps** > **App Lock Interception Service**.
 4. Toggle **On** and tap **Allow**.
 
@@ -54,14 +63,24 @@ Download the signed APK matching your phone's architecture from the [GitHub Rele
 > 3. Select **Allow restricted settings**.
 > 4. Verify with your fingerprint or PIN, then return to Accessibility settings and toggle the service on.
 
-### 3. Enable Notification Guard (Content Masking)
+### 3. Activate Device Administrator (Anti-Uninstall Protection)
+1. In the **Security & Protection** section, tap the **Anti-Uninstall Protection** row or toggle.
+2. The Samsung Device Administrator activation screen will appear. Tap **Activate** to grant protection.
+3. Once active, the app cannot be uninstalled from the home screen or settings menu without first deactivating Device Admin in **Settings > Security and privacy > More security settings > Device admin apps**.
+
+### 4. Enable Notification Guard (Content Masking)
 1. Tap **Enable** next to *Notification Guard*.
 2. Locate **App Lock Notification Guard** in Device & App Notifications and toggle it **On**.
 3. Allow Notification Access.
 
-### 4. Background Protection (Disable Battery Optimization)
-1. Tap **Enable** next to *Background Protection*.
-2. Select **Allow** when prompted to ignore battery optimizations, ensuring the One UI system memory manager does not stop the background accessibility interceptor.
+### 5. Custom App PIN vs. Phone Screen Lock
+- **Phone Screen Lock:** Seamlessly uses Samsung's native biometric sheet (Fingerprint, Face Unlock) with phone PIN/Pattern fallback.
+- **Dedicated Custom App PIN:** Set an independent 4–6 digit PIN hashed with salted SHA-256. When active, **only** the custom Samsung One UI PIN keypad is displayed with zero system biometric sheet interference.
+
+### 6. App Hiding & Play Store Protection
+- **App Lock Dashboard Protection:** App Lock itself stays readily accessible in your app drawer, protected by the **Lock App Lock Itself** gate so unauthorized users cannot access or disable locks.
+- **Hide Locked Apps from Launcher & Search:** Hides locked applications so they do not appear in the home screen, app drawer, or Finder searches.
+- **Guard Play Store & Settings:** Blocks intruders from searching for locked apps on Google Play Store to tap "Open", or navigating into Settings to alter permissions.
 
 ---
 
@@ -73,12 +92,13 @@ com.samsung.oneui.applock
 ├── data
 │   ├── model
 │   │   ├── AppInfo.kt             # UI model for installed applications & lock states
-│   │   └── LockSettings.kt        # Master toggles, notification scope, relock policies
+│   │   └── LockSettings.kt        # Master toggles, notification scope, auth mode, stealth
 │   ├── pref
 │   │   └── EncryptedPreferencesManager.kt # Jetpack Security EncryptedSharedPreferences & Flow
 │   └── repository
 │       └── AppLockRepository.kt   # Clean Repository coordinating PackageManager & EncryptedPrefs
 ├── receiver
+│   ├── AppLockDeviceAdminReceiver.kt # Device Administrator for Anti-Uninstall Protection
 │   └── BootReceiver.kt            # Warmed-up cache initialization on device reboot
 ├── service
 │   ├── AppLockAccessibilityService.kt # Window state change interceptor (O(1) in-memory lookup)
@@ -90,20 +110,23 @@ com.samsung.oneui.applock
 │   │   ├── OneUISearchBar.kt      # One UI pill search input
 │   │   └── OneUISwitch.kt         # Custom One UI pill switch
 │   ├── lock
-│   │   └── LockOverlayActivity.kt # Native BiometricPrompt with Android 11/12+ blur handling
+│   │   ├── LockOverlayActivity.kt # Native BiometricPrompt + Custom PIN keypad overlay
+│   │   └── OneUIPinKeypad.kt      # Samsung Galaxy styled 3x4 numeric circular keypad
 │   ├── main
-│   │   ├── MainActivity.kt        # Root launcher activity
+│   │   ├── AppLockSelfAuthScreen.kt# Master authentication gate for App Lock itself
+│   │   ├── CustomPinDialog.kt     # Custom PIN setup & change dialog
+│   │   ├── MainActivity.kt        # Root launcher activity with self-lock gating
 │   │   ├── MainScreen.kt          # One UI Master dashboard & application list
 │   │   ├── MainViewModel.kt       # MVVM StateFlow coordinator
-│   │   ├── PermissionCard.kt      # Permissions onboarding with deep links
-│   │   └── PermissionState.kt     # Permission status evaluation
+│   │   ├── PermissionCard.kt      # Permissions & Security onboarding with deep links
+│   │   └── PermissionState.kt     # Permission & Device Admin status evaluation
 │   └── theme
 │       ├── Color.kt               # AMOLED #010101, Light #F6F6F8, Samsung Blue #0381FE
 │       ├── Shape.kt               # 26.dp cards, 13.dp squircles, 50% pill buttons
 │       ├── Theme.kt               # One UI Compose theme provider
 │       └── Type.kt                # Typography scale matching Samsung One UI guidelines
 └── util
-    ├── PermissionHelper.kt        # System permission checkers & setting navigation intents
+    ├── PermissionHelper.kt        # System permission & Device Admin checkers
     └── SystemPackageFilter.kt     # SystemUI and launcher package resolution
 ```
 
@@ -137,6 +160,21 @@ Generated APKs will be located under `app/build/outputs/apk/release/`.
 - **No Network Permissions:** `android.permission.INTERNET` is **NOT** declared in `AndroidManifest.xml`. Zero telemetry, zero analytics, zero data leaving your device.
 - **Hardware Keystore:** AES keys are bound to the Android Keystore hardware security module (StrongBox / TEE).
 - **Direct Biometrics:** Biometric credentials never pass through app memory; authentication is handled solely by the OS `BiometricPrompt`.
+
+---
+
+## 💖 Support the Project & Donations
+
+Samsung One UI App Locker is 100% free, open source, and built with zero advertisements, zero tracking, and zero telemetry. If this project helps protect your Samsung Galaxy phone, consider supporting development!
+
+### 📱 Pay via UPI / Samsung Pay / GPay / PhonePe
+
+<p align="center">
+  <img src="SamsungPay_QR.png" width="260" alt="Samsung Pay UPI QR Code" />
+</p>
+
+- **UPI ID:** `peter.0419@pingpay`
+- **Supported Apps:** Samsung Pay, Google Pay, PhonePe, Paytm, CRED, BHIM, or any UPI-enabled banking app.
 
 ---
 

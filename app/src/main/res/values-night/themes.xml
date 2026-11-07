@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Flagship Samsung One UI AMOLED Dark Theme -->
+    <style name="Theme.OneUIAppLock" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#010101</item>
+        <item name="android:statusBarColor">#010101</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:navigationBarColor">#010101</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+    </style>
+
+    <!-- Opaque lock screen overlay in AMOLED Dark Mode -->
+    <style name="Theme.OneUIAppLock.Overlay" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:windowBackground">#010101</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:statusBarColor">#010101</item>
+        <item name="android:navigationBarColor">#010101</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+    </style>
+</resources>

@@ -33,7 +33,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,12 +51,14 @@ import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import androidx.core.view.WindowCompat
 import androidx.fragment.app.FragmentActivity
+import com.samsung.oneui.applock.data.model.AuthType
 import com.samsung.oneui.applock.data.pref.EncryptedPreferencesManager
 import com.samsung.oneui.applock.ui.theme.OneUIBlue
 import com.samsung.oneui.applock.ui.theme.OneUIDarkBackground
 import com.samsung.oneui.applock.ui.theme.OneUILightBackground
 import com.samsung.oneui.applock.ui.theme.OneUIPillRadius
 import com.samsung.oneui.applock.ui.theme.SamsungOneUIAppLockTheme
+import kotlinx.coroutines.delay
 import java.util.concurrent.Executor
 
 class LockOverlayActivity : FragmentActivity() {
@@ -88,7 +94,7 @@ class LockOverlayActivity : FragmentActivity() {
         executor = ContextCompat.getMainExecutor(this)
         setupBiometricPrompt()
 
-        // Intercept back button to navigate to device home screen (cannot bypass lock)
+        // Intercept back button to navigate cleanly to device home screen (cannot bypass lock)
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 navigateToHomeScreen()
@@ -98,9 +104,8 @@ class LockOverlayActivity : FragmentActivity() {
         setContent {
             SamsungOneUIAppLockTheme {
                 val isDark = isSystemInDarkTheme()
-
-                // Completely 100% opaque solid background to ensure 0% underlying app content leaks through
                 val solidBackground = if (isDark) OneUIDarkBackground else OneUILightBackground
+                val settings = prefsManager.settingsFlow.value
 
                 // Ensure status and nav bars are fully opaque solid
                 val window = this.window
@@ -111,21 +116,46 @@ class LockOverlayActivity : FragmentActivity() {
                     isAppearanceLightNavigationBars = !isDark
                 }
 
-                LockOverlayContent(
-                    appName = targetAppName,
-                    appIcon = targetAppIcon,
-                    backgroundColor = solidBackground,
-                    isDark = isDark,
-                    onUnlockClick = { triggerBiometricPrompt() }
-                )
+                if (settings.authType == AuthType.CUSTOM_PIN && settings.isCustomPinSet) {
+                    CustomPinOverlayContent(
+                        appName = targetAppName,
+                        appIcon = targetAppIcon,
+                        backgroundColor = solidBackground,
+                        isDark = isDark,
+                        showBiometricKey = false,
+                        onPinEntered = { pin ->
+                            if (prefsManager.verifyCustomPin(pin)) {
+                                targetPackage?.let { prefsManager.unlockPackageSession(it) }
+                                finishWithZeroAnimation()
+                                true
+                            } else {
+                                false
+                            }
+                        },
+                        onBiometricPress = { /* No-op in custom PIN mode */ }
+                    )
+                } else {
+                    SystemCredentialOverlayContent(
+                        appName = targetAppName,
+                        appIcon = targetAppIcon,
+                        backgroundColor = solidBackground,
+                        isDark = isDark,
+                        onUnlockClick = { triggerBiometricPrompt() }
+                    )
+                }
             }
         }
     }
 
     override fun onResume() {
         super.onResume()
+        val settings = prefsManager.settingsFlow.value
         if (!isAuthenticating) {
-            triggerBiometricPrompt()
+            // Strictly only trigger system biometric prompt when authType is SYSTEM_CREDENTIAL
+            // When custom PIN is set, the system native biometrics and pin modal sheet is NOT displayed
+            if (settings.authType == AuthType.SYSTEM_CREDENTIAL) {
+                triggerBiometricPrompt()
+            }
         }
     }
 
@@ -164,40 +194,55 @@ class LockOverlayActivity : FragmentActivity() {
                     isAuthenticating = false
                     Log.d(TAG, "Biometric authentication error $errorCode: $errString")
 
-                    when (errorCode) {
-                        BiometricPrompt.ERROR_USER_CANCELED,
-                        BiometricPrompt.ERROR_NEGATIVE_BUTTON,
-                        BiometricPrompt.ERROR_CANCELED -> {
-                            navigateToHomeScreen()
+                    val settings = prefsManager.settingsFlow.value
+                    if (settings.authType == AuthType.SYSTEM_CREDENTIAL) {
+                        when (errorCode) {
+                            BiometricPrompt.ERROR_USER_CANCELED,
+                            BiometricPrompt.ERROR_NEGATIVE_BUTTON,
+                            BiometricPrompt.ERROR_CANCELED -> {
+                                navigateToHomeScreen()
+                            }
                         }
-                        // Lockout or temporary errors: stay on overlay, user can press Unlock button
                     }
+                    // For CUSTOM_PIN, if biometric is canceled or fails, remain on PIN keypad
                 }
 
                 override fun onAuthenticationFailed() {
                     super.onAuthenticationFailed()
-                    Log.d(TAG, "Biometric authentication failed (mismatch)")
+                    Log.d(TAG, "Biometric authentication failed")
                 }
             }
         )
     }
 
     private fun triggerBiometricPrompt() {
-        val authenticators = BiometricManager.Authenticators.BIOMETRIC_STRONG or
-                BiometricManager.Authenticators.BIOMETRIC_WEAK or
-                BiometricManager.Authenticators.DEVICE_CREDENTIAL
+        val settings = prefsManager.settingsFlow.value
+        val isCustomPinMode = settings.authType == AuthType.CUSTOM_PIN
 
-        val promptInfo = BiometricPrompt.PromptInfo.Builder()
+        val authenticators = if (isCustomPinMode) {
+            // In custom PIN mode, only authenticate with biometric sensor, not device PIN
+            BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.BIOMETRIC_WEAK
+        } else {
+            // In system credential mode, allow device PIN / Pattern / Password fallback
+            BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                    BiometricManager.Authenticators.BIOMETRIC_WEAK or
+                    BiometricManager.Authenticators.DEVICE_CREDENTIAL
+        }
+
+        val promptInfoBuilder = BiometricPrompt.PromptInfo.Builder()
             .setTitle(targetAppName)
             .setSubtitle("App Locked")
-            .setDescription("Verify your identity with Samsung Biometrics or PIN to continue")
+            .setDescription("Verify identity to continue")
             .setAllowedAuthenticators(authenticators)
             .setConfirmationRequired(false)
-            .build()
+
+        if (isCustomPinMode) {
+            promptInfoBuilder.setNegativeButtonText("Use App PIN")
+        }
 
         try {
             isAuthenticating = true
-            biometricPrompt?.authenticate(promptInfo)
+            biometricPrompt?.authenticate(promptInfoBuilder.build())
         } catch (e: Exception) {
             isAuthenticating = false
             Log.e(TAG, "Failed to authenticate biometric prompt", e)
@@ -235,7 +280,92 @@ class LockOverlayActivity : FragmentActivity() {
 }
 
 @Composable
-private fun LockOverlayContent(
+private fun CustomPinOverlayContent(
+    appName: String,
+    appIcon: Drawable?,
+    backgroundColor: Color,
+    isDark: Boolean,
+    showBiometricKey: Boolean,
+    onPinEntered: (String) -> Boolean,
+    onBiometricPress: () -> Unit
+) {
+    var pinInput by remember { mutableStateOf("") }
+    var isError by remember { mutableStateOf(false) }
+    val pinLength = 4
+
+    LaunchedEffect(pinInput) {
+        if (pinInput.length == pinLength) {
+            val success = onPinEntered(pinInput)
+            if (!success) {
+                isError = true
+                delay(300)
+                pinInput = ""
+                delay(300)
+                isError = false
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(backgroundColor)
+            .systemBarsPadding(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(horizontal = 24.dp)
+        ) {
+            // App Icon
+            AppSquircleIconBadge(icon = appIcon, name = appName)
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Text(
+                text = appName,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (isDark) Color(0xFFF5F5F7) else Color(0xFF111111)
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = if (isError) "Incorrect PIN. Try again." else "Enter App PIN",
+                fontSize = 14.sp,
+                color = if (isError) Color(0xFFFF3B30) else if (isDark) Color(0xFF98989D) else Color(0xFF767676),
+                fontWeight = if (isError) FontWeight.SemiBold else FontWeight.Normal
+            )
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            // One UI Pin Keypad
+            OneUIPinKeypad(
+                pinLength = pinLength,
+                currentPinLength = pinInput.length,
+                isError = isError,
+                showBiometricKey = showBiometricKey,
+                isDark = isDark,
+                onDigitPress = { digit ->
+                    if (pinInput.length < pinLength && !isError) {
+                        pinInput += digit
+                    }
+                },
+                onDeletePress = {
+                    if (pinInput.isNotEmpty() && !isError) {
+                        pinInput = pinInput.dropLast(1)
+                    }
+                },
+                onBiometricPress = onBiometricPress
+            )
+        }
+    }
+}
+
+@Composable
+private fun SystemCredentialOverlayContent(
     appName: String,
     appIcon: Drawable?,
     backgroundColor: Color,
@@ -254,29 +384,7 @@ private fun LockOverlayContent(
             verticalArrangement = Arrangement.Center,
             modifier = Modifier.padding(32.dp)
         ) {
-            // Target App Icon
-            if (appIcon != null) {
-                val bitmap = remember(appIcon) {
-                    try {
-                        appIcon.toBitmap(width = 160, height = 160).asImageBitmap()
-                    } catch (e: Exception) {
-                        null
-                    }
-                }
-                if (bitmap != null) {
-                    Image(
-                        bitmap = bitmap,
-                        contentDescription = appName,
-                        modifier = Modifier
-                            .size(80.dp)
-                            .clip(RoundedCornerShape(22.dp))
-                    )
-                } else {
-                    DefaultLockIconBadge()
-                }
-            } else {
-                DefaultLockIconBadge()
-            }
+            AppSquircleIconBadge(icon = appIcon, name = appName)
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -298,7 +406,7 @@ private fun LockOverlayContent(
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(44.dp))
+            Spacer(modifier = Modifier.height(48.dp))
 
             // Subtle One UI Pill Unlock Button
             Button(
@@ -309,7 +417,7 @@ private fun LockOverlayContent(
                     contentColor = Color.White
                 ),
                 modifier = Modifier
-                    .height(48.dp)
+                    .height(50.dp)
                     .padding(horizontal = 24.dp)
             ) {
                 Icon(
@@ -319,7 +427,7 @@ private fun LockOverlayContent(
                 )
                 Spacer(modifier = Modifier.size(8.dp))
                 Text(
-                    text = "Unlock",
+                    text = "Unlock with Biometrics",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -329,9 +437,29 @@ private fun LockOverlayContent(
 }
 
 @Composable
-private fun DefaultLockIconBadge() {
+private fun AppSquircleIconBadge(icon: Drawable?, name: String) {
+    if (icon != null) {
+        val bitmap = remember(icon) {
+            try {
+                icon.toBitmap(width = 160, height = 160).asImageBitmap()
+            } catch (e: Exception) {
+                null
+            }
+        }
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap,
+                contentDescription = name,
+                modifier = Modifier
+                    .size(76.dp)
+                    .clip(RoundedCornerShape(20.dp))
+            )
+            return
+        }
+    }
+
     Surface(
-        modifier = Modifier.size(80.dp),
+        modifier = Modifier.size(76.dp),
         shape = CircleShape,
         color = OneUIBlue.copy(alpha = 0.15f)
     ) {
@@ -340,7 +468,7 @@ private fun DefaultLockIconBadge() {
                 imageVector = Icons.Rounded.Lock,
                 contentDescription = null,
                 tint = OneUIBlue,
-                modifier = Modifier.size(38.dp)
+                modifier = Modifier.size(36.dp)
             )
         }
     }

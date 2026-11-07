@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.samsung.oneui.applock.AppLockApplication
 import com.samsung.oneui.applock.data.model.AppInfo
+import com.samsung.oneui.applock.data.model.AuthType
 import com.samsung.oneui.applock.data.model.LockSettings
 import com.samsung.oneui.applock.data.model.NotificationMaskMode
 import com.samsung.oneui.applock.data.model.RelockPolicy
@@ -36,7 +37,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _permissionState = MutableStateFlow(PermissionState())
     val permissionState: StateFlow<PermissionState> = _permissionState.asStateFlow()
 
-    // Combined filtered apps list reactive to search and lock status
     val displayedApps: StateFlow<List<AppInfo>> = combine(
         _rawApps,
         _searchQuery,
@@ -82,8 +82,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             isAccessibilityEnabled = PermissionHelper.isAccessibilityServiceEnabled(context),
             isNotificationListenerEnabled = PermissionHelper.isNotificationListenerEnabled(context),
             isPostNotificationsGranted = PermissionHelper.isPostNotificationsGranted(context),
-            isBatteryOptimizationIgnored = PermissionHelper.isIgnoringBatteryOptimizations(context)
+            isBatteryOptimizationIgnored = PermissionHelper.isIgnoringBatteryOptimizations(context),
+            isDeviceAdminActive = PermissionHelper.isDeviceAdminActive(context)
         )
+        repository.refreshState()
     }
 
     fun loadInstalledApps() {
@@ -126,5 +128,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setRelockPolicy(policy: RelockPolicy) {
         repository.setRelockPolicy(policy)
+    }
+
+    fun setAuthType(type: AuthType) {
+        repository.setAuthType(type)
+    }
+
+    fun setUseBiometricWithCustomPin(enabled: Boolean) {
+        repository.setUseBiometricWithCustomPin(enabled)
+    }
+
+    fun setCustomPin(pin: String): Boolean {
+        return repository.setCustomPin(pin)
+    }
+
+    fun removeCustomPin() {
+        repository.removeCustomPin()
+    }
+
+    fun setHideLockedApps(enabled: Boolean) {
+        repository.setHideLockedApps(enabled)
+    }
+
+    fun setGuardPlayStoreAndSettings(enabled: Boolean) {
+        repository.setGuardPlayStoreAndSettings(enabled)
+    }
+
+    fun setSelfLock(enabled: Boolean) {
+        repository.setSelfLock(enabled)
     }
 }

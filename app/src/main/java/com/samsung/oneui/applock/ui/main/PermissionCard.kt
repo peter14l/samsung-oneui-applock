@@ -5,7 +5,6 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,8 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccessibilityNew
 import androidx.compose.material.icons.rounded.BatteryAlert
 import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -50,17 +49,20 @@ fun PermissionSetupCard(
     onEnableNotificationListener: () -> Unit,
     onRequestPostNotifications: () -> Unit,
     onEnableBatteryOptimization: () -> Unit,
+    onEnableDeviceAdmin: () -> Unit,
     onOpenRestrictedSettingsHelp: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val needsAttention = !state.allRequiredGranted || !state.isBatteryOptimizationIgnored || !state.isDeviceAdminActive
+
     AnimatedVisibility(
-        visible = !state.allRequiredGranted || !state.isBatteryOptimizationIgnored,
+        visible = needsAttention,
         enter = expandVertically(),
         exit = shrinkVertically()
     ) {
         Column(modifier = modifier.fillMaxWidth()) {
             Text(
-                text = "REQUIRED PERMISSIONS",
+                text = "REQUIRED PERMISSIONS & SECURITY",
                 style = OneUITypography.titleSmall,
                 color = OneUITheme.extraColors.subtitleColor,
                 modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
@@ -95,7 +97,7 @@ fun PermissionSetupCard(
                             color = OneUITheme.extraColors.textPrimary
                         )
                         Text(
-                            text = "Grant permissions below to enable app locking & masking",
+                            text = "Grant permissions below to enable app locking & anti-uninstall protection",
                             style = OneUITypography.bodySmall,
                             color = OneUITheme.extraColors.textSecondary
                         )
@@ -137,7 +139,18 @@ fun PermissionSetupCard(
 
                 OneUIDivider(insetStart = true)
 
-                // 4. Battery Optimization
+                // 4. Device Admin (Uninstall Protection)
+                PermissionItem(
+                    title = "Anti-Uninstall Protection",
+                    subtitle = "Device Admin prevents unauthorized app removal",
+                    icon = Icons.Rounded.Security,
+                    isGranted = state.isDeviceAdminActive,
+                    onClick = onEnableDeviceAdmin
+                )
+
+                OneUIDivider(insetStart = true)
+
+                // 5. Battery Optimization
                 PermissionItem(
                     title = "Background Protection",
                     subtitle = "Ignore battery optimizations for 24/7 reliability",
@@ -176,7 +189,7 @@ private fun PermissionItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = !isGranted) { onClick() }
+            .clickable { onClick() }
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -229,10 +242,10 @@ private fun PermissionItem(
             }
         } else {
             Text(
-                text = "Enabled",
+                text = "Active",
                 color = OneUIGreen,
                 fontSize = 13.sp,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.SemiBold
             )
         }
     }

@@ -15,9 +15,22 @@ enum class NotificationMaskMode {
 }
 
 @Keep
+enum class AuthType {
+    SYSTEM_CREDENTIAL,
+    CUSTOM_PIN
+}
+
+@Keep
 data class LockSettings(
     val masterLockEnabled: Boolean = true,
     val masterNotificationMasking: Boolean = true,
     val notificationMaskMode: NotificationMaskMode = NotificationMaskMode.GLOBAL,
-    val relockPolicy: RelockPolicy = RelockPolicy.SCREEN_OFF
+    val relockPolicy: RelockPolicy = RelockPolicy.SCREEN_OFF,
+    val authType: AuthType = AuthType.SYSTEM_CREDENTIAL,
+    val isCustomPinSet: Boolean = false,
+    val useBiometricWithCustomPin: Boolean = false,
+    val isDeviceAdminEnabled: Boolean = false,
+    val isHideLockedAppsEnabled: Boolean = false,
+    val isGuardPlayStoreAndSettings: Boolean = true,
+    val isSelfLockEnabled: Boolean = true
 )

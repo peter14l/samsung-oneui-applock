@@ -8,4 +8,9 @@
     <string name="notification_channel_name">App Lock Alerts</string>
     <string name="notification_channel_desc">Channel for masked and security notifications</string>
     <string name="notification_masked_content">Contents hidden • Unlock app to view</string>
+    
+    <!-- Device Administrator Protection -->
+    <string name="device_admin_label">App Lock Protection</string>
+    <string name="device_admin_description">Prevents unauthorized uninstallation of App Lock. Disabling this requires identity verification.</string>
+    <string name="device_admin_disable_warning">Disabling Device Administrator will remove uninstallation protection. Anyone will be able to uninstall App Lock.</string>
 </resources>

@@ -1,7 +1,9 @@
 package com.samsung.oneui.applock.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,6 +24,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.dp
+import com.samsung.oneui.applock.ui.theme.OneUIDarkSurface
+import com.samsung.oneui.applock.ui.theme.OneUILightSurface
 import com.samsung.oneui.applock.ui.theme.OneUIPillRadius
 import com.samsung.oneui.applock.ui.theme.OneUITheme
 import com.samsung.oneui.applock.ui.theme.OneUITypography
@@ -33,12 +37,20 @@ fun OneUISearchBar(
     modifier: Modifier = Modifier,
     placeholder: String = "Search apps"
 ) {
+    val isDark = isSystemInDarkTheme()
+    val bgColor = if (isDark) OneUIDarkSurface else OneUILightSurface
+
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(48.dp)
             .background(
-                color = OneUITheme.extraColors.cardBackground,
+                color = bgColor,
+                shape = RoundedCornerShape(OneUIPillRadius)
+            )
+            .border(
+                width = 1.dp,
+                color = OneUITheme.extraColors.cardBorder,
                 shape = RoundedCornerShape(OneUIPillRadius)
             )
             .padding(horizontal = 16.dp),
@@ -77,7 +89,7 @@ fun OneUISearchBar(
             if (query.isNotEmpty()) {
                 Icon(
                     imageVector = Icons.Rounded.Clear,
-                    contentDescription = "Clear",
+                    contentDescription = "Clear search",
                     tint = OneUITheme.extraColors.textSecondary,
                     modifier = Modifier
                         .size(20.dp)

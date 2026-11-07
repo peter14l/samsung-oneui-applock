@@ -1,23 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Flagship Samsung One UI Light Theme -->
     <style name="Theme.OneUIAppLock" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#F6F6F8</item>
         <item name="android:statusBarColor">#F6F6F8</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:navigationBarColor">#F6F6F8</item>
         <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
     </style>
 
-    <!-- Opaque lock screen overlay: blocks 100% of underlying app content -->
-    <style name="Theme.OneUIAppLock.Overlay" parent="android:Theme.Material.NoActionBar">
+    <!-- Opaque lock screen overlay in Light Mode: blocks 100% of underlying app content -->
+    <style name="Theme.OneUIAppLock.Overlay" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowIsTranslucent">false</item>
-        <item name="android:windowBackground">#010101</item>
+        <item name="android:windowBackground">#F6F6F8</item>
         <item name="android:windowContentOverlay">@null</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowIsFloating">false</item>
         <item name="android:backgroundDimEnabled">false</item>
         <item name="android:windowAnimationStyle">@null</item>
-        <item name="android:statusBarColor">#010101</item>
-        <item name="android:navigationBarColor">#010101</item>
+        <item name="android:statusBarColor">#F6F6F8</item>
+        <item name="android:navigationBarColor">#F6F6F8</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
     </style>
 </resources>
