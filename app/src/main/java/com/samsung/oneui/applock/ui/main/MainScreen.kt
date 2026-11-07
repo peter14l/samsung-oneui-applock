@@ -94,6 +94,7 @@ fun MainScreen(
 
     var showPinDialog by remember { mutableStateOf(false) }
     var showDonationDialog by remember { mutableStateOf(false) }
+    var showHideAppsHelpDialog by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     val isTopBarCollapsed by remember {
@@ -118,8 +119,14 @@ fun MainScreen(
         )
     }
 
+    if (showHideAppsHelpDialog) {
+        HideAppsHelpDialog(
+            onDismiss = { showHideAppsHelpDialog = false }
+        )
+    }
+
     Scaffold(
-        containerColor = OneUITheme.extraColors.cardBackground.copy(alpha = 0.05f),
+        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.background,
         topBar = {
             OneUICollapsedTopBar(
                 title = "App Lock",
@@ -354,23 +361,36 @@ fun MainScreen(
                     OneUIDivider(insetStart = false)
 
                     // Hide Locked Apps from Launcher & Searches
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    val isDeviceOwner = com.samsung.oneui.applock.util.PermissionHelper.isDeviceOwner(context)
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { viewModel.setHideLockedApps(!settings.isHideLockedAppsEnabled) }
+                            .clickable {
+                                if (isDeviceOwner) {
+                                    viewModel.setHideLockedApps(!settings.isHideLockedAppsEnabled)
+                                } else {
+                                    showHideAppsHelpDialog = true
+                                }
+                            }
                             .padding(horizontal = 20.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
                             modifier = Modifier
                                 .size(40.dp)
-                                .background(OneUITheme.extraColors.pillBackground, CircleShape),
+                                .background(
+                                    if (isDeviceOwner && settings.isHideLockedAppsEnabled) OneUIGreen.copy(alpha = 0.12f)
+                                    else OneUITheme.extraColors.pillBackground,
+                                    CircleShape
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.VisibilityOff,
                                 contentDescription = null,
-                                tint = OneUITheme.extraColors.textPrimary,
+                                tint = if (isDeviceOwner && settings.isHideLockedAppsEnabled) OneUIGreen else OneUITheme.extraColors.textPrimary,
                                 modifier = Modifier.size(22.dp)
                             )
                         }
@@ -382,14 +402,22 @@ fun MainScreen(
                                 color = OneUITheme.extraColors.textPrimary
                             )
                             Text(
-                                text = if (settings.isHideLockedAppsEnabled) "Locked apps hidden from home screen & search" else "Hides locked apps from home, app drawer & search",
+                                text = if (isDeviceOwner && settings.isHideLockedAppsEnabled) "Locked apps hidden from home screen & search"
+                                       else if (isDeviceOwner) "Auto-hide locked apps at system level"
+                                       else "Tap to configure One UI Home or ADB auto-hide",
                                 style = OneUITypography.bodySmall,
-                                color = OneUITheme.extraColors.textSecondary
+                                color = if (isDeviceOwner && settings.isHideLockedAppsEnabled) OneUIGreen else OneUITheme.extraColors.textSecondary
                             )
                         }
                         OneUISwitch(
-                            checked = settings.isHideLockedAppsEnabled,
-                            onCheckedChange = { viewModel.setHideLockedApps(it) }
+                            checked = isDeviceOwner && settings.isHideLockedAppsEnabled,
+                            onCheckedChange = {
+                                if (isDeviceOwner) {
+                                    viewModel.setHideLockedApps(it)
+                                } else {
+                                    showHideAppsHelpDialog = true
+                                }
+                            }
                         )
                     }
 

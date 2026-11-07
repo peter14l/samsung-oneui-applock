@@ -46,6 +46,27 @@ object PermissionHelper {
         return dpm.isDeviceOwnerApp(context.packageName)
     }
 
+    fun getSamsungHomeSettingsIntent(context: Context): Intent {
+        val candidateIntents = listOf(
+            Intent().apply {
+                setClassName("com.sec.android.app.launcher", "com.sec.android.app.launcher.activities.HideAppsActivity")
+            },
+            Intent().apply {
+                setClassName("com.sec.android.app.launcher", "com.sec.android.app.launcher.activities.HomeSettingsActivity")
+            },
+            Intent("com.sec.android.app.launcher.action.SETTINGS"),
+            Intent(Settings.ACTION_HOME_SETTINGS)
+        )
+
+        val pm = context.packageManager
+        for (intent in candidateIntents) {
+            if (intent.resolveActivity(pm) != null) {
+                return intent.apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK }
+            }
+        }
+        return Intent(Settings.ACTION_SETTINGS).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK }
+    }
+
     fun setApplicationHidden(context: Context, packageName: String, hidden: Boolean): Boolean {
         val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager ?: return false
         return try {

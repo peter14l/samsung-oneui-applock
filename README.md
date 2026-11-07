@@ -79,7 +79,13 @@ Download the signed APK matching your phone's architecture from the [GitHub Rele
 
 ### 6. App Hiding & Play Store Protection
 - **App Lock Dashboard Protection:** App Lock itself stays readily accessible in your app drawer, protected by the **Lock App Lock Itself** gate so unauthorized users cannot access or disable locks.
-- **Hide Locked Apps from Launcher & Search:** Hides locked applications so they do not appear in the home screen, app drawer, or Finder searches.
+- **Hide Locked Apps from Launcher & Search:**
+  - **Option 1 (Instant / No PC):** Tap the toggle in App Lock and select **"Open Home Screen Settings"** to directly access Samsung One UI Home's native *"Hide apps on Home and Apps screens"* list.
+  - **Option 2 (Automatic Background Hiding via ADB):** Run this one-time command from your PC to grant Device Owner privileges:
+    ```bash
+    adb shell dpm set-device-owner com.samsung.oneui.applock/.receiver.AppLockDeviceAdminReceiver
+    ```
+    Once granted, App Lock can hide and unhide any locked app automatically at the OS level!
 - **Guard Play Store & Settings:** Blocks intruders from searching for locked apps on Google Play Store to tap "Open", or navigating into Settings to alter permissions.
 
 ---
