@@ -1,0 +1,22 @@
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build/
+*/build/
+captures/
+.externalNativeBuild
+.cxx/
+*.apk
+*.aab
+*.ap_
+
+# Keystore and security credentials (MUST NEVER BE COMMITTED)
+*.jks
+*.keystore
+*.p12
+*.key
+keystore.properties
+release-keystore.jks
+keystore_base64.txt

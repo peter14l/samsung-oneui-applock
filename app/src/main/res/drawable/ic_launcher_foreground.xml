@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Samsung One UI inspired Lock Icon -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,28 C45.16,28 38,35.16 38,44 L38,50 C34.69,50 32,52.69 32,56 L32,74 C32,77.31 34.69,80 38,80 L70,80 C73.31,80 76,77.31 76,74 L76,56 C76,52.69 73.31,50 70,50 L70,44 C70,35.16 62.84,28 54,28 Z M54,34 C59.52,34 64,38.48 64,44 L64,50 L44,50 L44,44 C44,38.48 48.48,34 54,34 Z M54,61 C56.21,61 58,62.79 58,65 C58,66.69 56.95,68.14 55.48,68.73 L56,73 L52,73 L52.52,68.73 C51.05,68.14 50,66.69 50,65 C50,62.79 51.79,61 54,61 Z"/>
+</vector>
