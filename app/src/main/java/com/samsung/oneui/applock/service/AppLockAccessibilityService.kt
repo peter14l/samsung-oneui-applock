@@ -116,7 +116,8 @@ class AppLockAccessibilityService : AccessibilityService() {
                         Intent.FLAG_ACTIVITY_NO_ANIMATION or
                         Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
             }
-            startActivity(intent)
+            val options = android.app.ActivityOptions.makeCustomAnimation(this, 0, 0).toBundle()
+            startActivity(intent, options)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to launch LockOverlayActivity for $targetPackage", e)
         }

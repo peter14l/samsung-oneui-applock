@@ -7,7 +7,6 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.WindowManager
-import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.biometric.BiometricManager
@@ -23,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -33,10 +33,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,9 +45,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
+import androidx.core.view.WindowCompat
 import androidx.fragment.app.FragmentActivity
 import com.samsung.oneui.applock.data.pref.EncryptedPreferencesManager
 import com.samsung.oneui.applock.ui.theme.OneUIBlue
+import com.samsung.oneui.applock.ui.theme.OneUIDarkBackground
+import com.samsung.oneui.applock.ui.theme.OneUILightBackground
 import com.samsung.oneui.applock.ui.theme.OneUIPillRadius
 import com.samsung.oneui.applock.ui.theme.SamsungOneUIAppLockTheme
 import java.util.concurrent.Executor
@@ -68,6 +68,13 @@ class LockOverlayActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Prevent screenshots, recent tasks preview leakage, and screen recording
+        window.setFlags(
+            WindowManager.LayoutParams.FLAG_SECURE,
+            WindowManager.LayoutParams.FLAG_SECURE
+        )
+
         prefsManager = EncryptedPreferencesManager.getInstance(this)
 
         targetPackage = intent.getStringExtra(EXTRA_TARGET_PACKAGE)
@@ -77,7 +84,6 @@ class LockOverlayActivity : FragmentActivity() {
         }
 
         loadAppMetadata(targetPackage!!)
-        applyWindowBlurOrFrostedGlass()
 
         executor = ContextCompat.getMainExecutor(this)
         setupBiometricPrompt()
@@ -92,18 +98,24 @@ class LockOverlayActivity : FragmentActivity() {
         setContent {
             SamsungOneUIAppLockTheme {
                 val isDark = isSystemInDarkTheme()
-                val frostedBackground = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    // With window blur on Android 12+, use semi-translucent glass
-                    if (isDark) Color(0x99010101) else Color(0xCCF6F6F8)
-                } else {
-                    // Android 11 (API 30) fallback: high-opacity frosted dark/light surface
-                    if (isDark) Color.Black.copy(alpha = 0.88f) else Color.White.copy(alpha = 0.92f)
+
+                // Completely 100% opaque solid background to ensure 0% underlying app content leaks through
+                val solidBackground = if (isDark) OneUIDarkBackground else OneUILightBackground
+
+                // Ensure status and nav bars are fully opaque solid
+                val window = this.window
+                window.statusBarColor = if (isDark) 0xFF010101.toInt() else 0xFFF6F6F8.toInt()
+                window.navigationBarColor = if (isDark) 0xFF010101.toInt() else 0xFFF6F6F8.toInt()
+                WindowCompat.getInsetsController(window, window.decorView).apply {
+                    isAppearanceLightStatusBars = !isDark
+                    isAppearanceLightNavigationBars = !isDark
                 }
 
                 LockOverlayContent(
                     appName = targetAppName,
                     appIcon = targetAppIcon,
-                    backgroundColor = frostedBackground,
+                    backgroundColor = solidBackground,
+                    isDark = isDark,
                     onUnlockClick = { triggerBiometricPrompt() }
                 )
             }
@@ -130,19 +142,6 @@ class LockOverlayActivity : FragmentActivity() {
             targetAppIcon = pm.getApplicationIcon(appInfo)
         } catch (e: Exception) {
             targetAppName = pkg
-        }
-    }
-
-    private fun applyWindowBlurOrFrostedGlass() {
-        // Strict runtime API-level check for Android 12+ (API 31 / S) window background blur
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            try {
-                window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
-                window.attributes.blurBehindRadius = 80
-                window.setBackgroundBlurRadius(80)
-            } catch (e: Throwable) {
-                Log.w(TAG, "Window blur setup failed, falling back to frosted surface", e)
-            }
         }
     }
 
@@ -240,12 +239,14 @@ private fun LockOverlayContent(
     appName: String,
     appIcon: Drawable?,
     backgroundColor: Color,
+    isDark: Boolean,
     onUnlockClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(backgroundColor),
+            .background(backgroundColor)
+            .systemBarsPadding(),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -267,8 +268,8 @@ private fun LockOverlayContent(
                         bitmap = bitmap,
                         contentDescription = appName,
                         modifier = Modifier
-                            .size(76.dp)
-                            .clip(RoundedCornerShape(20.dp))
+                            .size(80.dp)
+                            .clip(RoundedCornerShape(22.dp))
                     )
                 } else {
                     DefaultLockIconBadge()
@@ -277,12 +278,13 @@ private fun LockOverlayContent(
                 DefaultLockIconBadge()
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             Text(
                 text = appName,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
+                color = if (isDark) Color(0xFFF5F5F7) else Color(0xFF111111),
                 textAlign = TextAlign.Center
             )
 
@@ -292,11 +294,11 @@ private fun LockOverlayContent(
                 text = "Protected by Samsung One UI App Lock",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Normal,
-                color = Color.Gray,
+                color = if (isDark) Color(0xFF98989D) else Color(0xFF767676),
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(44.dp))
 
             // Subtle One UI Pill Unlock Button
             Button(
@@ -329,7 +331,7 @@ private fun LockOverlayContent(
 @Composable
 private fun DefaultLockIconBadge() {
     Surface(
-        modifier = Modifier.size(76.dp),
+        modifier = Modifier.size(80.dp),
         shape = CircleShape,
         color = OneUIBlue.copy(alpha = 0.15f)
     ) {
@@ -338,7 +340,7 @@ private fun DefaultLockIconBadge() {
                 imageVector = Icons.Rounded.Lock,
                 contentDescription = null,
                 tint = OneUIBlue,
-                modifier = Modifier.size(36.dp)
+                modifier = Modifier.size(38.dp)
             )
         }
     }
