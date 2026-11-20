@@ -1,6 +1,7 @@
 package com.samsung.oneui.applock.ui.theme
 
 import android.app.Activity
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -104,8 +105,12 @@ fun SamsungOneUIAppLockTheme(
         SideEffect {
             val window = (view.context as? Activity)?.window
             if (window != null) {
-                window.statusBarColor = colorScheme.background.toArgb()
-                window.navigationBarColor = colorScheme.background.toArgb()
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+                    @Suppress("DEPRECATION")
+                    window.statusBarColor = colorScheme.background.toArgb()
+                    @Suppress("DEPRECATION")
+                    window.navigationBarColor = colorScheme.background.toArgb()
+                }
                 val insetsController = WindowCompat.getInsetsController(window, view)
                 insetsController.isAppearanceLightStatusBars = !darkTheme
                 insetsController.isAppearanceLightNavigationBars = !darkTheme

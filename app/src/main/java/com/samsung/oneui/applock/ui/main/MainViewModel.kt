@@ -142,6 +142,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return repository.setCustomPin(pin)
     }
 
+    fun getRemainingLockoutSeconds(): Long {
+        return repository.getRemainingLockoutSeconds()
+    }
+
     fun removeCustomPin() {
         repository.removeCustomPin()
     }

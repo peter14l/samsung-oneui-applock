@@ -109,8 +109,12 @@ class LockOverlayActivity : FragmentActivity() {
 
                 // Ensure status and nav bars are fully opaque solid
                 val window = this.window
-                window.statusBarColor = if (isDark) 0xFF010101.toInt() else 0xFFF6F6F8.toInt()
-                window.navigationBarColor = if (isDark) 0xFF010101.toInt() else 0xFFF6F6F8.toInt()
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+                    @Suppress("DEPRECATION")
+                    window.statusBarColor = if (isDark) 0xFF010101.toInt() else 0xFFF6F6F8.toInt()
+                    @Suppress("DEPRECATION")
+                    window.navigationBarColor = if (isDark) 0xFF010101.toInt() else 0xFFF6F6F8.toInt()
+                }
                 WindowCompat.getInsetsController(window, window.decorView).apply {
                     isAppearanceLightStatusBars = !isDark
                     isAppearanceLightNavigationBars = !isDark
@@ -122,7 +126,9 @@ class LockOverlayActivity : FragmentActivity() {
                         appIcon = targetAppIcon,
                         backgroundColor = solidBackground,
                         isDark = isDark,
-                        showBiometricKey = false,
+                        pinLength = settings.customPinLength,
+                        showBiometricKey = settings.useBiometricWithCustomPin,
+                        getLockoutSeconds = { prefsManager.getRemainingLockoutSeconds() },
                         onPinEntered = { pin ->
                             if (prefsManager.verifyCustomPin(pin)) {
                                 targetPackage?.let { prefsManager.unlockPackageSession(it) }
@@ -132,7 +138,11 @@ class LockOverlayActivity : FragmentActivity() {
                                 false
                             }
                         },
-                        onBiometricPress = { /* No-op in custom PIN mode */ }
+                        onBiometricPress = {
+                            if (settings.useBiometricWithCustomPin) {
+                                triggerBiometricPrompt()
+                            }
+                        }
                     )
                 } else {
                     SystemCredentialOverlayContent(
@@ -151,9 +161,9 @@ class LockOverlayActivity : FragmentActivity() {
         super.onResume()
         val settings = prefsManager.settingsFlow.value
         if (!isAuthenticating) {
-            // Strictly only trigger system biometric prompt when authType is SYSTEM_CREDENTIAL
-            // When custom PIN is set, the system native biometrics and pin modal sheet is NOT displayed
-            if (settings.authType == AuthType.SYSTEM_CREDENTIAL) {
+            // Trigger biometrics in SYSTEM_CREDENTIAL mode, or in CUSTOM_PIN mode if biometrics enabled
+            if (settings.authType == AuthType.SYSTEM_CREDENTIAL ||
+                (settings.authType == AuthType.CUSTOM_PIN && settings.useBiometricWithCustomPin)) {
                 triggerBiometricPrompt()
             }
         }
@@ -285,16 +295,30 @@ private fun CustomPinOverlayContent(
     appIcon: Drawable?,
     backgroundColor: Color,
     isDark: Boolean,
+    pinLength: Int,
     showBiometricKey: Boolean,
+    getLockoutSeconds: () -> Long,
     onPinEntered: (String) -> Boolean,
     onBiometricPress: () -> Unit
 ) {
     var pinInput by remember { mutableStateOf("") }
     var isError by remember { mutableStateOf(false) }
-    val pinLength = 4
+    var remainingLockout by remember { mutableStateOf(getLockoutSeconds()) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            val seconds = getLockoutSeconds()
+            remainingLockout = seconds
+            if (seconds > 0) {
+                delay(1000)
+            } else {
+                delay(500)
+            }
+        }
+    }
 
     LaunchedEffect(pinInput) {
-        if (pinInput.length == pinLength) {
+        if (pinInput.length == pinLength && remainingLockout <= 0) {
             val success = onPinEntered(pinInput)
             if (!success) {
                 isError = true
@@ -302,6 +326,7 @@ private fun CustomPinOverlayContent(
                 pinInput = ""
                 delay(300)
                 isError = false
+                remainingLockout = getLockoutSeconds()
             }
         }
     }
@@ -332,11 +357,17 @@ private fun CustomPinOverlayContent(
 
             Spacer(modifier = Modifier.height(4.dp))
 
+            val statusText = when {
+                remainingLockout > 0 -> "Too many attempts. Try again in ${remainingLockout}s"
+                isError -> "Incorrect PIN. Try again."
+                else -> "Enter App PIN"
+            }
+
             Text(
-                text = if (isError) "Incorrect PIN. Try again." else "Enter App PIN",
+                text = statusText,
                 fontSize = 14.sp,
-                color = if (isError) Color(0xFFFF3B30) else if (isDark) Color(0xFF98989D) else Color(0xFF767676),
-                fontWeight = if (isError) FontWeight.SemiBold else FontWeight.Normal
+                color = if (isError || remainingLockout > 0) Color(0xFFFF3B30) else if (isDark) Color(0xFF98989D) else Color(0xFF767676),
+                fontWeight = if (isError || remainingLockout > 0) FontWeight.SemiBold else FontWeight.Normal
             )
 
             Spacer(modifier = Modifier.height(28.dp))
@@ -349,12 +380,12 @@ private fun CustomPinOverlayContent(
                 showBiometricKey = showBiometricKey,
                 isDark = isDark,
                 onDigitPress = { digit ->
-                    if (pinInput.length < pinLength && !isError) {
+                    if (pinInput.length < pinLength && !isError && remainingLockout <= 0) {
                         pinInput += digit
                     }
                 },
                 onDeletePress = {
-                    if (pinInput.isNotEmpty() && !isError) {
+                    if (pinInput.isNotEmpty() && !isError && remainingLockout <= 0) {
                         pinInput = pinInput.dropLast(1)
                     }
                 },

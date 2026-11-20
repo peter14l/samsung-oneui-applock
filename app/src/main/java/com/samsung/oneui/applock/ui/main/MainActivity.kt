@@ -77,6 +77,7 @@ class MainActivity : FragmentActivity() {
                 if (settings.isSelfLockEnabled && !isSelfAuthenticated) {
                     AppLockSelfAuthScreen(
                         settings = settings,
+                        getLockoutSeconds = { prefsManager.getRemainingLockoutSeconds() },
                         onPinVerify = { pin ->
                             if (prefsManager.verifyCustomPin(pin)) {
                                 isSelfAuthenticated = true
@@ -158,9 +159,8 @@ class MainActivity : FragmentActivity() {
 
         val settings = viewModel.settings.value
         if (settings.isSelfLockEnabled && !isSelfAuthenticated && !isAuthenticating) {
-            // Strictly only trigger system biometric prompt when authType is SYSTEM_CREDENTIAL
-            // When custom PIN is set, do NOT display the system native biometrics modal sheet
-            if (settings.authType == AuthType.SYSTEM_CREDENTIAL) {
+            if (settings.authType == AuthType.SYSTEM_CREDENTIAL ||
+                (settings.authType == AuthType.CUSTOM_PIN && settings.useBiometricWithCustomPin)) {
                 triggerBiometricPrompt()
             }
         }

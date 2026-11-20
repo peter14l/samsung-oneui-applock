@@ -49,6 +49,12 @@ class NotificationGuardService : NotificationListenerService() {
             return
         }
 
+        // Do not suppress ongoing or foreground service notifications (e.g. Media players, timers, calls)
+        val originalNotification = sbn.notification
+        if (sbn.isOngoing || (originalNotification != null && (originalNotification.flags and Notification.FLAG_ONGOING_EVENT != 0))) {
+            return
+        }
+
         // Check if user has already unlocked this package session
         if (prefsManager.isSessionUnlocked(pkgName)) {
             return

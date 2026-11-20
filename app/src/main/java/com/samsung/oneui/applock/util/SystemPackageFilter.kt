@@ -52,6 +52,15 @@ class SystemPackageFilter(private val context: Context) {
         if (packageName.startsWith("com.samsung.android.biometrics")) return true
         if (packageName.startsWith("com.samsung.android.app.cocktailbarservice")) return true // Edge panel
 
+        // Ignore system permission controller dialogs
+        if (packageName.startsWith("com.android.permissioncontroller") ||
+            packageName.startsWith("com.google.android.permissioncontroller")) return true
+
+        // Ignore transient system file & photo pickers to avoid locking parent apps mid-task
+        if (packageName == "com.android.documentsui") return true
+        if (packageName == "com.google.android.providers.media.module") return true
+        if (packageName.startsWith("com.sec.android.app.myfiles")) return true
+
         val launchers = getLauncherPackages()
         return launchers.contains(packageName)
     }

@@ -45,6 +45,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun AppLockSelfAuthScreen(
     settings: LockSettings,
+    getLockoutSeconds: () -> Long = { 0L },
     onPinVerify: (String) -> Boolean,
     onBiometricTrigger: () -> Unit
 ) {
@@ -53,12 +54,25 @@ fun AppLockSelfAuthScreen(
 
     var pinInput by remember { mutableStateOf("") }
     var isError by remember { mutableStateOf(false) }
-    val pinLength = 4
+    val pinLength = settings.customPinLength
+    var remainingLockout by remember { mutableStateOf(getLockoutSeconds()) }
 
     val isCustomPinMode = settings.authType == AuthType.CUSTOM_PIN && settings.isCustomPinSet
 
+    LaunchedEffect(Unit) {
+        while (true) {
+            val seconds = getLockoutSeconds()
+            remainingLockout = seconds
+            if (seconds > 0) {
+                delay(1000)
+            } else {
+                delay(500)
+            }
+        }
+    }
+
     LaunchedEffect(pinInput) {
-        if (pinInput.length == pinLength) {
+        if (pinInput.length == pinLength && remainingLockout <= 0) {
             val success = onPinVerify(pinInput)
             if (!success) {
                 isError = true
@@ -66,6 +80,7 @@ fun AppLockSelfAuthScreen(
                 pinInput = ""
                 delay(300)
                 isError = false
+                remainingLockout = getLockoutSeconds()
             }
         }
     }
@@ -109,13 +124,18 @@ fun AppLockSelfAuthScreen(
 
             Spacer(modifier = Modifier.height(4.dp))
 
+            val statusText = when {
+                remainingLockout > 0 -> "Too many attempts. Try again in ${remainingLockout}s"
+                isError -> "Incorrect PIN. Try again."
+                isCustomPinMode -> "Enter your App PIN to access settings"
+                else -> "Verify your identity to access settings"
+            }
+
             Text(
-                text = if (isError) "Incorrect PIN. Try again."
-                else if (isCustomPinMode) "Enter your App PIN to access settings"
-                else "Verify your identity to access settings",
+                text = statusText,
                 fontSize = 14.sp,
-                fontWeight = if (isError) FontWeight.SemiBold else FontWeight.Normal,
-                color = if (isError) Color(0xFFFF3B30) else if (isDark) Color(0xFF98989D) else Color(0xFF767676),
+                fontWeight = if (isError || remainingLockout > 0) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (isError || remainingLockout > 0) Color(0xFFFF3B30) else if (isDark) Color(0xFF98989D) else Color(0xFF767676),
                 textAlign = TextAlign.Center
             )
 
@@ -126,15 +146,15 @@ fun AppLockSelfAuthScreen(
                     pinLength = pinLength,
                     currentPinLength = pinInput.length,
                     isError = isError,
-                    showBiometricKey = false,
+                    showBiometricKey = settings.useBiometricWithCustomPin,
                     isDark = isDark,
                     onDigitPress = { digit ->
-                        if (pinInput.length < pinLength && !isError) {
+                        if (pinInput.length < pinLength && !isError && remainingLockout <= 0) {
                             pinInput += digit
                         }
                     },
                     onDeletePress = {
-                        if (pinInput.isNotEmpty() && !isError) {
+                        if (pinInput.isNotEmpty() && !isError && remainingLockout <= 0) {
                             pinInput = pinInput.dropLast(1)
                         }
                     },

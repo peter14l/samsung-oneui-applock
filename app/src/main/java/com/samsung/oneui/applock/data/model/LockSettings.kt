@@ -28,6 +28,7 @@ data class LockSettings(
     val relockPolicy: RelockPolicy = RelockPolicy.SCREEN_OFF,
     val authType: AuthType = AuthType.SYSTEM_CREDENTIAL,
     val isCustomPinSet: Boolean = false,
+    val customPinLength: Int = 4,
     val useBiometricWithCustomPin: Boolean = false,
     val isDeviceAdminEnabled: Boolean = false,
     val isHideLockedAppsEnabled: Boolean = false,

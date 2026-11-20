@@ -9,9 +9,9 @@ A production-ready, zero-bloat native Android App Locker built in 100% Kotlin an
 - **Dual Authentication Engines:**
   - **Samsung System Credentials:** Seamlessly invokes native Samsung Face, Fingerprint, and device PIN/Pattern/Password via `androidx.biometric.BiometricPrompt`.
   - **App-Specific Custom PIN:** Allows setting a dedicated 4–6 digit custom secret PIN with salted SHA-256 encryption. Supports biometric bypass while falling back directly to your app PIN (instead of the phone's lock code).
-- **Stealth Mode (Launcher & Finder Hiding):**
-  - Completely hides the application icon from Samsung One UI Home, app drawer, and device Finder searches via dynamic `<activity-alias>` management.
-  - Re-open at any time by dialing **`*#*#1234#*#*`** in the Samsung Phone dialer.
+- **App Hiding (Launcher & Finder Hiding):**
+  - Seamlessly integrates with Samsung One UI Home's native *"Hide apps on Home and Apps screens"* settings.
+  - Supports automatic system-level hiding and unhiding of locked apps via ADB Device Owner privileges.
 - **Self-Lock & Anti-Bypass Protection:**
   - The App Lock settings dashboard itself is protected by an impenetrable authentication gate. Even if searched up and opened via Google Play Store, Samsung Galaxy Store, or system Settings, unauthorized users cannot access settings or disable protection.
 - **Anti-Uninstall Protection (Device Administrator):**

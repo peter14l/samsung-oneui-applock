@@ -16,6 +16,7 @@ class LockSettingsTest {
         assertTrue(settings.masterNotificationMasking)
         assertEquals(NotificationMaskMode.GLOBAL, settings.notificationMaskMode)
         assertEquals(RelockPolicy.SCREEN_OFF, settings.relockPolicy)
+        assertEquals(4, settings.customPinLength)
     }
 
     @Test
@@ -23,9 +24,11 @@ class LockSettingsTest {
         val original = LockSettings()
         val modified = original.copy(
             masterLockEnabled = false,
-            relockPolicy = RelockPolicy.IMMEDIATE
+            relockPolicy = RelockPolicy.IMMEDIATE,
+            customPinLength = 6
         )
         assertEquals(false, modified.masterLockEnabled)
         assertEquals(RelockPolicy.IMMEDIATE, modified.relockPolicy)
+        assertEquals(6, modified.customPinLength)
     }
 }

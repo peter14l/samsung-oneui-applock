@@ -95,6 +95,7 @@ class EncryptedPreferencesManager private constructor(context: Context) {
 
         val customPinHash = prefs.getString(KEY_CUSTOM_PIN_HASH, null)
         val isCustomPinSet = !customPinHash.isNullOrBlank()
+        val customPinLength = prefs.getInt(KEY_CUSTOM_PIN_LENGTH, 4)
         val useBiometricWithCustomPin = prefs.getBoolean(KEY_USE_BIOMETRIC_CUSTOM_PIN, false)
         val isDeviceAdmin = PermissionHelper.isDeviceAdminActive(appContext)
 
@@ -109,6 +110,7 @@ class EncryptedPreferencesManager private constructor(context: Context) {
             relockPolicy = relockPolicy,
             authType = authType,
             isCustomPinSet = isCustomPinSet,
+            customPinLength = customPinLength,
             useBiometricWithCustomPin = useBiometricWithCustomPin,
             isDeviceAdminEnabled = isDeviceAdmin,
             isHideLockedAppsEnabled = isHideLockedApps,
@@ -204,29 +206,90 @@ class EncryptedPreferencesManager private constructor(context: Context) {
         _settingsFlow.value = _settingsFlow.value.copy(useBiometricWithCustomPin = enabled)
     }
 
+    fun getRemainingLockoutSeconds(): Long {
+        val now = System.currentTimeMillis()
+        val lockoutUntil = prefs.getLong(KEY_PIN_LOCKOUT_UNTIL, 0L)
+        return if (lockoutUntil > now) {
+            (lockoutUntil - now + 999) / 1000
+        } else {
+            0L
+        }
+    }
+
     fun setCustomPin(pin: String): Boolean {
-        if (pin.length < 4) return false
+        if (pin.length !in 4..6) return false
         val salt = getOrCreateSalt()
         val hash = hashPin(pin, salt)
-        prefs.edit().putString(KEY_CUSTOM_PIN_HASH, hash).apply()
+        prefs.edit()
+            .putString(KEY_CUSTOM_PIN_HASH, hash)
+            .putInt(KEY_CUSTOM_PIN_LENGTH, pin.length)
+            .apply()
+        resetFailedPinAttempts()
         _settingsFlow.value = _settingsFlow.value.copy(
             isCustomPinSet = true,
+            customPinLength = pin.length,
             authType = AuthType.CUSTOM_PIN
         )
         return true
     }
 
     fun verifyCustomPin(pin: String): Boolean {
+        if (getRemainingLockoutSeconds() > 0) {
+            return false
+        }
+
         val storedHash = prefs.getString(KEY_CUSTOM_PIN_HASH, null) ?: return false
         val salt = getOrCreateSalt()
         val computedHash = hashPin(pin, salt)
-        return storedHash == computedHash
+
+        // Constant-time comparison to prevent timing attacks
+        val matches = MessageDigest.isEqual(
+            storedHash.toByteArray(Charsets.UTF_8),
+            computedHash.toByteArray(Charsets.UTF_8)
+        )
+
+        if (matches) {
+            resetFailedPinAttempts()
+            return true
+        } else {
+            recordFailedPinAttempt()
+            return false
+        }
+    }
+
+    private fun recordFailedPinAttempt() {
+        val currentAttempts = prefs.getInt(KEY_FAILED_PIN_ATTEMPTS, 0) + 1
+        val editor = prefs.edit().putInt(KEY_FAILED_PIN_ATTEMPTS, currentAttempts)
+
+        val lockoutDurationMs = when {
+            currentAttempts >= 10 -> 60_000L // 60 seconds
+            currentAttempts >= 5 -> 30_000L  // 30 seconds
+            else -> 0L
+        }
+
+        if (lockoutDurationMs > 0) {
+            val lockoutUntil = System.currentTimeMillis() + lockoutDurationMs
+            editor.putLong(KEY_PIN_LOCKOUT_UNTIL, lockoutUntil)
+        }
+        editor.apply()
+    }
+
+    fun resetFailedPinAttempts() {
+        prefs.edit()
+            .remove(KEY_FAILED_PIN_ATTEMPTS)
+            .remove(KEY_PIN_LOCKOUT_UNTIL)
+            .apply()
     }
 
     fun removeCustomPin() {
-        prefs.edit().remove(KEY_CUSTOM_PIN_HASH).apply()
+        prefs.edit()
+            .remove(KEY_CUSTOM_PIN_HASH)
+            .remove(KEY_CUSTOM_PIN_LENGTH)
+            .apply()
+        resetFailedPinAttempts()
         _settingsFlow.value = _settingsFlow.value.copy(
             isCustomPinSet = false,
+            customPinLength = 4,
             authType = AuthType.SYSTEM_CREDENTIAL,
             useBiometricWithCustomPin = false
         )
@@ -298,7 +361,10 @@ class EncryptedPreferencesManager private constructor(context: Context) {
         private const val KEY_RELOCK_POLICY = "key_relock_policy"
         private const val KEY_AUTH_TYPE = "key_auth_type"
         private const val KEY_CUSTOM_PIN_HASH = "key_custom_pin_hash"
+        private const val KEY_CUSTOM_PIN_LENGTH = "key_custom_pin_length"
         private const val KEY_PIN_SALT = "key_pin_salt"
+        private const val KEY_FAILED_PIN_ATTEMPTS = "key_failed_pin_attempts"
+        private const val KEY_PIN_LOCKOUT_UNTIL = "key_pin_lockout_until"
         private const val KEY_USE_BIOMETRIC_CUSTOM_PIN = "key_use_biometric_custom_pin"
         private const val KEY_HIDE_LOCKED_APPS = "key_hide_locked_apps"
         private const val KEY_GUARD_PLAY_STORE = "key_guard_play_store"

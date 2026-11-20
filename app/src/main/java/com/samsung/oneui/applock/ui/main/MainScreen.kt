@@ -2,6 +2,7 @@ package com.samsung.oneui.applock.ui.main
 
 import android.graphics.drawable.Drawable
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -39,6 +41,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -69,6 +72,7 @@ import com.samsung.oneui.applock.ui.components.OneUIExpandingHeader
 import com.samsung.oneui.applock.ui.components.OneUISearchBar
 import com.samsung.oneui.applock.ui.components.OneUISwitch
 import com.samsung.oneui.applock.ui.theme.OneUIBlue
+import com.samsung.oneui.applock.ui.theme.OneUICardRadius
 import com.samsung.oneui.applock.ui.theme.OneUIGreen
 import com.samsung.oneui.applock.ui.theme.OneUIIconRadius
 import com.samsung.oneui.applock.ui.theme.OneUIPillRadius
@@ -774,9 +778,34 @@ fun MainScreen(
                     }
                 }
             } else {
-                item(key = "apps_container") {
-                    OneUICard {
-                        apps.forEachIndexed { index, app ->
+                itemsIndexed(
+                    items = apps,
+                    key = { _, app -> app.packageName }
+                ) { index, app ->
+                    val cardShape = when {
+                        apps.size == 1 -> RoundedCornerShape(OneUICardRadius)
+                        index == 0 -> RoundedCornerShape(
+                            topStart = OneUICardRadius,
+                            topEnd = OneUICardRadius,
+                            bottomStart = 0.dp,
+                            bottomEnd = 0.dp
+                        )
+                        index == apps.size - 1 -> RoundedCornerShape(
+                            topStart = 0.dp,
+                            topEnd = 0.dp,
+                            bottomStart = OneUICardRadius,
+                            bottomEnd = OneUICardRadius
+                        )
+                        else -> RoundedCornerShape(0.dp)
+                    }
+
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = cardShape,
+                        color = OneUITheme.extraColors.cardBackground,
+                        border = BorderStroke(1.dp, OneUITheme.extraColors.cardBorder)
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
                             AppListItem(
                                 app = app,
                                 settings = settings,
@@ -812,7 +841,11 @@ private fun AppListItem(
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AppSquircleIcon(icon = app.icon, appName = app.appName)
+        AppSquircleIcon(
+            icon = app.icon,
+            iconBitmap = app.iconBitmap,
+            appName = app.appName
+        )
 
         Spacer(modifier = Modifier.width(14.dp))
 
@@ -857,9 +890,10 @@ private fun AppListItem(
 @Composable
 private fun AppSquircleIcon(
     icon: Drawable?,
+    iconBitmap: androidx.compose.ui.graphics.ImageBitmap?,
     appName: String
 ) {
-    val bitmap = remember(icon) {
+    val bitmap = iconBitmap ?: remember(icon) {
         try {
             icon?.toBitmap(width = 132, height = 132)?.asImageBitmap()
         } catch (e: Exception) {

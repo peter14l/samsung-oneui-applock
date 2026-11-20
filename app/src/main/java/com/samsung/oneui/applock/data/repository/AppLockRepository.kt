@@ -5,6 +5,8 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.graphics.drawable.toBitmap
 import com.samsung.oneui.applock.data.model.AppInfo
 import com.samsung.oneui.applock.data.model.LockSettings
 import com.samsung.oneui.applock.data.model.NotificationMaskMode
@@ -62,12 +64,18 @@ class AppLockRepository(private val context: Context) {
 
                 val label = packageManager.getApplicationLabel(appInfo).toString()
                 val icon = packageManager.getApplicationIcon(appInfo)
+                val iconBitmap = try {
+                    icon.toBitmap(width = 132, height = 132).asImageBitmap()
+                } catch (e: Exception) {
+                    null
+                }
                 val isSystem = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
 
                 AppInfo(
                     packageName = pkg,
                     appName = label,
                     icon = icon,
+                    iconBitmap = iconBitmap,
                     isLocked = lockedSet.contains(pkg),
                     isNotificationMasked = maskedSet.contains(pkg),
                     isSystemApp = isSystem
@@ -125,6 +133,10 @@ class AppLockRepository(private val context: Context) {
 
     fun verifyCustomPin(pin: String): Boolean {
         return prefsManager.verifyCustomPin(pin)
+    }
+
+    fun getRemainingLockoutSeconds(): Long {
+        return prefsManager.getRemainingLockoutSeconds()
     }
 
     fun removeCustomPin() {
