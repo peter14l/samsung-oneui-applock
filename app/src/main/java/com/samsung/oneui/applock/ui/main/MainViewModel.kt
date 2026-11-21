@@ -97,6 +97,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _permissionState.value = PermissionState(
             isAccessibilityEnabled = PermissionHelper.isAccessibilityServiceEnabled(context),
             isUsageAccessGranted = PermissionHelper.isUsageAccessGranted(context),
+            isAppearOnTopGranted = PermissionHelper.isAppearOnTopGranted(context),
             isNotificationListenerEnabled = PermissionHelper.isNotificationListenerEnabled(context),
             isPostNotificationsGranted = PermissionHelper.isPostNotificationsGranted(context),
             isBatteryOptimizationIgnored = PermissionHelper.isIgnoringBatteryOptimizations(context),

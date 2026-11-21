@@ -1,6 +1,9 @@
 package com.samsung.oneui.applock.service
 
 import android.app.ActivityOptions
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.Service
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
@@ -8,9 +11,13 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.ServiceInfo
+import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
+import androidx.core.app.NotificationCompat
+import com.samsung.oneui.applock.R
 import com.samsung.oneui.applock.data.model.InterceptionEngine
 import com.samsung.oneui.applock.data.model.RelockPolicy
 import com.samsung.oneui.applock.data.pref.EncryptedPreferencesManager
@@ -28,7 +35,8 @@ import kotlinx.coroutines.launch
 
 /**
  * Banking & Payment Friendly Interception Engine.
- * Uses Android's UsageStatsManager (App Usage Access) instead of AccessibilityService.
+ * Runs as a lightweight Foreground Service using Android's UsageStatsManager (App Usage Access)
+ * and SYSTEM_ALERT_WINDOW ("Appear on top") instead of AccessibilityService.
  * Completely invisible to Google Pay, PhonePe, Paytm, and banking security detectors.
  */
 class AppLockUsageService : Service() {
@@ -57,6 +65,7 @@ class AppLockUsageService : Service() {
     private var isScreenOn: Boolean = true
 
     private var lastForegroundPackage: String? = null
+    private var lastEventTimestamp: Long = 0L
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -69,6 +78,7 @@ class AppLockUsageService : Service() {
                 }
                 Intent.ACTION_SCREEN_ON -> {
                     isScreenOn = true
+                    lastForegroundPackage = null
                     Log.d(TAG, "Screen ON detected: resuming usage polling")
                     checkAndResumePolling()
                 }
@@ -79,11 +89,14 @@ class AppLockUsageService : Service() {
     override fun onCreate() {
         super.onCreate()
         Log.i(TAG, "AppLockUsageService onCreate")
+        startForegroundProtection()
+
         prefsManager = EncryptedPreferencesManager.getInstance(this)
         systemPackageFilter = SystemPackageFilter(this)
         usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
         powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         isScreenOn = powerManager.isInteractive
+        lastEventTimestamp = System.currentTimeMillis() - 2000L
 
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_OFF)
@@ -115,8 +128,49 @@ class AppLockUsageService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        startForegroundProtection()
         checkAndResumePolling()
         return START_STICKY
+    }
+
+    private fun startForegroundProtection() {
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                getString(R.string.usage_service_channel_name),
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = getString(R.string.usage_service_channel_desc)
+                setShowBadge(false)
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
+
+        val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle(getString(R.string.usage_service_notification_title))
+            .setContentText(getString(R.string.usage_service_notification_text))
+            .setSmallIcon(R.drawable.ic_lock_badge)
+            .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .build()
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                } else {
+                    0
+                }
+                startForeground(NOTIFICATION_ID, notification, type)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+            Log.i(TAG, "AppLockUsageService running in foreground")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to startForeground for AppLockUsageService", e)
+        }
     }
 
     private fun checkAndResumePolling() {
@@ -146,24 +200,46 @@ class AppLockUsageService : Service() {
 
     private fun detectForegroundApp() {
         val now = System.currentTimeMillis()
-        val events = usageStatsManager.queryEvents(now - 1500, now) ?: return
+        val queryStart = if (lastEventTimestamp <= 0L || (now - lastEventTimestamp > 5000L)) {
+            now - 2000L
+        } else {
+            lastEventTimestamp
+        }
+
+        val events = usageStatsManager.queryEvents(queryStart, now)
         val event = UsageEvents.Event()
         var latestPackage: String? = null
 
-        while (events.hasNextEvent()) {
-            events.getNextEvent(event)
-            if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED) {
-                latestPackage = event.packageName
+        if (events != null) {
+            while (events.hasNextEvent()) {
+                events.getNextEvent(event)
+                if (event.timeStamp > lastEventTimestamp) {
+                    lastEventTimestamp = event.timeStamp
+                }
+                if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED) {
+                    latestPackage = event.packageName
+                }
             }
         }
 
+        // Fallback for screen wake-up directly into app without new resume event
+        if (latestPackage == null && lastForegroundPackage == null) {
+            val stats = usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, now - 4000L, now)
+            latestPackage = stats?.maxByOrNull { it.lastTimeUsed }?.packageName
+        }
+
         val eventPackage = latestPackage ?: return
+
+        // Ignore our own package
+        if (eventPackage == packageName) {
+            return
+        }
 
         if (eventPackage == lastForegroundPackage) {
             return
         }
 
-        // Ignore system packages & our own app
+        // Ignore system packages & launchers
         if (systemPackageFilter.isSystemOrIgnored(eventPackage)) {
             if (relockPolicy == RelockPolicy.IMMEDIATE && lastForegroundPackage != null && lastForegroundPackage != eventPackage) {
                 prefsManager.lockPackageSession(lastForegroundPackage!!)
@@ -195,11 +271,18 @@ class AppLockUsageService : Service() {
             val intent = Intent(this, LockOverlayActivity::class.java).apply {
                 putExtra(LockOverlayActivity.EXTRA_TARGET_PACKAGE, targetPackage)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
                         Intent.FLAG_ACTIVITY_NO_ANIMATION or
                         Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
             }
-            val options = ActivityOptions.makeCustomAnimation(this, 0, 0).toBundle()
-            startActivity(intent, options)
+            val options = ActivityOptions.makeCustomAnimation(this, 0, 0)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                options.setPendingIntentBackgroundActivityStartMode(
+                    ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+                )
+            }
+            startActivity(intent, options.toBundle())
+            Log.i(TAG, "Launched LockOverlayActivity for $targetPackage")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to launch LockOverlayActivity for $targetPackage", e)
         }
@@ -213,6 +296,12 @@ class AppLockUsageService : Service() {
             // Ignored
         }
         pausePolling()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
+        }
         serviceScope.cancel()
         Log.i(TAG, "AppLockUsageService onDestroy")
     }
@@ -221,11 +310,17 @@ class AppLockUsageService : Service() {
 
     companion object {
         private const val TAG = "AppLockUsageService"
+        private const val NOTIFICATION_ID = 2001
+        private const val CHANNEL_ID = "app_lock_usage_channel"
 
         fun start(context: Context) {
             try {
                 val intent = Intent(context, AppLockUsageService::class.java)
-                context.startService(intent)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to start AppLockUsageService", e)
             }

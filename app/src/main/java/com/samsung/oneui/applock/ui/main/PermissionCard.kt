@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccessibilityNew
 import androidx.compose.material.icons.rounded.BatteryAlert
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.WarningAmber
@@ -48,6 +49,7 @@ fun PermissionSetupCard(
     state: PermissionState,
     onEnableAccessibility: () -> Unit,
     onEnableUsageAccess: () -> Unit,
+    onEnableAppearOnTop: () -> Unit,
     onEnableNotificationListener: () -> Unit,
     onRequestPostNotifications: () -> Unit,
     onEnableBatteryOptimization: () -> Unit,
@@ -124,6 +126,16 @@ fun PermissionSetupCard(
                         icon = Icons.Rounded.Security,
                         isGranted = state.isUsageAccessGranted,
                         onClick = onEnableUsageAccess
+                    )
+
+                    OneUIDivider(insetStart = true)
+
+                    PermissionItem(
+                        title = "Appear on Top",
+                        subtitle = "Required to display lock overlay over opened apps",
+                        icon = Icons.Rounded.Layers,
+                        isGranted = state.isAppearOnTopGranted,
+                        onClick = onEnableAppearOnTop
                     )
                 }
 

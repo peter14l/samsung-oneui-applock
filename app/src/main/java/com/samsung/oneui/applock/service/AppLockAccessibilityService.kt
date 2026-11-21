@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
+import com.samsung.oneui.applock.data.model.InterceptionEngine
 import com.samsung.oneui.applock.data.model.RelockPolicy
 import com.samsung.oneui.applock.data.pref.EncryptedPreferencesManager
 import com.samsung.oneui.applock.ui.lock.LockOverlayActivity
@@ -32,6 +33,9 @@ class AppLockAccessibilityService : AccessibilityService() {
     private var masterLockEnabled: Boolean = true
 
     @Volatile
+    private var currentEngine: InterceptionEngine = InterceptionEngine.ACCESSIBILITY
+
+    @Volatile
     private var relockPolicy: RelockPolicy = RelockPolicy.SCREEN_OFF
 
     private var lastForegroundPackage: String? = null
@@ -48,6 +52,7 @@ class AppLockAccessibilityService : AccessibilityService() {
     override fun onCreate() {
         super.onCreate()
         Log.i(TAG, "AppLockAccessibilityService onCreate")
+        instance = this
         prefsManager = EncryptedPreferencesManager.getInstance(this)
         systemPackageFilter = SystemPackageFilter(this)
 
@@ -66,6 +71,7 @@ class AppLockAccessibilityService : AccessibilityService() {
         serviceScope.launch {
             prefsManager.settingsFlow.collectLatest { settings ->
                 masterLockEnabled = settings.masterLockEnabled
+                currentEngine = settings.interceptionEngine
                 relockPolicy = settings.relockPolicy
                 updateDynamicPackageNames(lockedPackagesSnapshot)
             }
@@ -80,9 +86,9 @@ class AppLockAccessibilityService : AccessibilityService() {
     private fun updateDynamicPackageNames(lockedPackages: Set<String>) {
         try {
             val info = serviceInfo ?: return
-            // If master lock is disabled or no apps are locked, scope strictly to our own package.
+            // If master lock is disabled or engine is not ACCESSIBILITY or no apps are locked, scope strictly to our own package.
             // This ensures banking and payment apps are NEVER monitored by the accessibility service.
-            val targets = if (!masterLockEnabled || lockedPackages.isEmpty()) {
+            val targets = if (!masterLockEnabled || currentEngine != InterceptionEngine.ACCESSIBILITY || lockedPackages.isEmpty()) {
                 arrayOf(packageName)
             } else {
                 // Include locked apps, our own package, and home launchers for immediate exit detection
@@ -120,7 +126,7 @@ class AppLockAccessibilityService : AccessibilityService() {
 
         lastForegroundPackage = eventPackage
 
-        if (!masterLockEnabled) {
+        if (!masterLockEnabled || currentEngine != InterceptionEngine.ACCESSIBILITY) {
             return
         }
 
@@ -156,6 +162,9 @@ class AppLockAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         super.onDestroy()
+        if (instance === this) {
+            instance = null
+        }
         try {
             unregisterReceiver(screenOffReceiver)
         } catch (e: Exception) {
@@ -167,5 +176,27 @@ class AppLockAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val TAG = "AppLockA11yService"
+
+        @Volatile
+        var instance: AppLockAccessibilityService? = null
+            private set
+
+        /**
+         * Disables the accessibility service from running in Android OS.
+         * Once called, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES no longer lists this service,
+         * allowing banking apps to work without any interference.
+         */
+        fun disableService(): Boolean {
+            val inst = instance ?: return false
+            return try {
+                inst.disableSelf()
+                instance = null
+                Log.i(TAG, "Accessibility service disabled via disableSelf()")
+                true
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to disableSelf", e)
+                false
+            }
+        }
     }
 }

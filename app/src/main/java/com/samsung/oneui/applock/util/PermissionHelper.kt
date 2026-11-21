@@ -189,4 +189,44 @@ object PermissionHelper {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
     }
+
+    fun isAppearOnTopGranted(context: Context): Boolean {
+        return Settings.canDrawOverlays(context)
+    }
+
+    fun getAppearOnTopSettingsIntent(context: Context): Intent {
+        return Intent(
+            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+            Uri.parse("package:${context.packageName}")
+        ).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+    }
+
+    fun hasWriteSecureSettings(context: Context): Boolean {
+        return context.checkCallingOrSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED
+    }
+
+    fun setAccessibilityServiceViaSecureSettings(context: Context, enabled: Boolean): Boolean {
+        if (!hasWriteSecureSettings(context)) return false
+        return try {
+            val expected = ComponentName(context, AppLockAccessibilityService::class.java).flattenToString()
+            val resolver = context.contentResolver
+            val current = Settings.Secure.getString(resolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: ""
+            val services = current.split(":").filter { it.isNotBlank() }.toMutableSet()
+
+            if (enabled) {
+                services.add(expected)
+            } else {
+                services.remove(expected)
+            }
+
+            val newSetting = services.joinToString(":")
+            Settings.Secure.putString(resolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, newSetting)
+            Settings.Secure.putInt(resolver, Settings.Secure.ACCESSIBILITY_ENABLED, if (services.isNotEmpty()) 1 else 0)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
 }

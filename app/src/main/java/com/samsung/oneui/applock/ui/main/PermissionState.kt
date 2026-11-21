@@ -5,6 +5,7 @@ import com.samsung.oneui.applock.data.model.InterceptionEngine
 data class PermissionState(
     val isAccessibilityEnabled: Boolean = false,
     val isUsageAccessGranted: Boolean = false,
+    val isAppearOnTopGranted: Boolean = false,
     val isNotificationListenerEnabled: Boolean = false,
     val isPostNotificationsGranted: Boolean = false,
     val isBatteryOptimizationIgnored: Boolean = false,
@@ -15,7 +16,7 @@ data class PermissionState(
         get() {
             val engineReady = when (interceptionEngine) {
                 InterceptionEngine.ACCESSIBILITY -> isAccessibilityEnabled
-                InterceptionEngine.USAGE_ACCESS -> isUsageAccessGranted
+                InterceptionEngine.USAGE_ACCESS -> isUsageAccessGranted && isAppearOnTopGranted
             }
             return engineReady && isNotificationListenerEnabled && isPostNotificationsGranted
         }

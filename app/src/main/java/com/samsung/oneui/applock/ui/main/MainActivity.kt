@@ -106,6 +106,13 @@ class MainActivity : FragmentActivity() {
                                 Toast.makeText(this, "Unable to open Usage Access Settings", Toast.LENGTH_SHORT).show()
                             }
                         },
+                        onEnableAppearOnTop = {
+                            try {
+                                startActivity(PermissionHelper.getAppearOnTopSettingsIntent(this))
+                            } catch (e: Exception) {
+                                Toast.makeText(this, "Unable to open Appear on Top Settings", Toast.LENGTH_SHORT).show()
+                            }
+                        },
                         onEnableNotificationListener = {
                             try {
                                 startActivity(PermissionHelper.getNotificationListenerSettingsIntent())
