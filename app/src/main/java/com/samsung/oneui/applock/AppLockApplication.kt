@@ -4,8 +4,10 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
+import com.samsung.oneui.applock.data.model.InterceptionEngine
 import com.samsung.oneui.applock.data.pref.EncryptedPreferencesManager
 import com.samsung.oneui.applock.data.repository.AppLockRepository
+import com.samsung.oneui.applock.service.AppLockUsageService
 
 class AppLockApplication : Application() {
 
@@ -21,6 +23,11 @@ class AppLockApplication : Application() {
         prefsManager = EncryptedPreferencesManager.getInstance(this)
         repository = AppLockRepository(this)
         createNotificationChannels()
+
+        val settings = prefsManager.settingsFlow.value
+        if (settings.interceptionEngine == InterceptionEngine.USAGE_ACCESS && settings.masterLockEnabled) {
+            AppLockUsageService.start(this)
+        }
     }
 
     private fun createNotificationChannels() {

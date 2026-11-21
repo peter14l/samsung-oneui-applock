@@ -13,4 +13,9 @@
     <string name="device_admin_label">App Lock Protection</string>
     <string name="device_admin_description">Prevents unauthorized uninstallation of App Lock. Disabling this requires identity verification.</string>
     <string name="device_admin_disable_warning">Disabling Device Administrator will remove uninstallation protection. Anyone will be able to uninstall App Lock.</string>
+    <!-- Quick Settings Tile -->
+    <string name="quick_tile_label">App Lock</string>
+    <string name="quick_tile_active">Active</string>
+    <string name="quick_tile_paused">Paused</string>
+    <string name="usage_access_service_name">App Lock Usage Monitor</string>
 </resources>

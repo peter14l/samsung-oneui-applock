@@ -21,8 +21,15 @@ enum class AuthType {
 }
 
 @Keep
+enum class InterceptionEngine {
+    ACCESSIBILITY,
+    USAGE_ACCESS
+}
+
+@Keep
 data class LockSettings(
     val masterLockEnabled: Boolean = true,
+    val interceptionEngine: InterceptionEngine = InterceptionEngine.ACCESSIBILITY,
     val masterNotificationMasking: Boolean = true,
     val notificationMaskMode: NotificationMaskMode = NotificationMaskMode.GLOBAL,
     val relockPolicy: RelockPolicy = RelockPolicy.SCREEN_OFF,

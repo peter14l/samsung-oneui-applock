@@ -107,6 +107,10 @@ class AppLockRepository(private val context: Context) {
         prefsManager.setMasterLockEnabled(enabled)
     }
 
+    fun setInterceptionEngine(engine: com.samsung.oneui.applock.data.model.InterceptionEngine) {
+        prefsManager.setInterceptionEngine(engine)
+    }
+
     fun setMasterNotificationMasking(enabled: Boolean) {
         prefsManager.setMasterNotificationMasking(enabled)
     }

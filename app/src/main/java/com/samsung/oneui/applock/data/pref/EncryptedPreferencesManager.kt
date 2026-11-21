@@ -8,6 +8,7 @@ import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.samsung.oneui.applock.data.model.AuthType
+import com.samsung.oneui.applock.data.model.InterceptionEngine
 import com.samsung.oneui.applock.data.model.LockSettings
 import com.samsung.oneui.applock.data.model.NotificationMaskMode
 import com.samsung.oneui.applock.data.model.RelockPolicy
@@ -71,6 +72,12 @@ class EncryptedPreferencesManager private constructor(context: Context) {
         _maskedPackagesFlow.value = maskedSet
 
         val masterLock = prefs.getBoolean(KEY_MASTER_LOCK, true)
+        val engineName = prefs.getString(KEY_INTERCEPTION_ENGINE, InterceptionEngine.ACCESSIBILITY.name)
+        val interceptionEngine = try {
+            InterceptionEngine.valueOf(engineName ?: InterceptionEngine.ACCESSIBILITY.name)
+        } catch (e: Exception) {
+            InterceptionEngine.ACCESSIBILITY
+        }
         val masterMasking = prefs.getBoolean(KEY_MASTER_NOTIFICATION_MASKING, true)
         val maskModeName = prefs.getString(KEY_NOTIFICATION_MASK_MODE, NotificationMaskMode.GLOBAL.name)
         val maskMode = try {
@@ -105,6 +112,7 @@ class EncryptedPreferencesManager private constructor(context: Context) {
 
         _settingsFlow.value = LockSettings(
             masterLockEnabled = masterLock,
+            interceptionEngine = interceptionEngine,
             masterNotificationMasking = masterMasking,
             notificationMaskMode = maskMode,
             relockPolicy = relockPolicy,
@@ -179,6 +187,11 @@ class EncryptedPreferencesManager private constructor(context: Context) {
     fun setMasterLockEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_MASTER_LOCK, enabled).apply()
         _settingsFlow.value = _settingsFlow.value.copy(masterLockEnabled = enabled)
+    }
+
+    fun setInterceptionEngine(engine: InterceptionEngine) {
+        prefs.edit().putString(KEY_INTERCEPTION_ENGINE, engine.name).apply()
+        _settingsFlow.value = _settingsFlow.value.copy(interceptionEngine = engine)
     }
 
     fun setMasterNotificationMasking(enabled: Boolean) {
@@ -356,6 +369,7 @@ class EncryptedPreferencesManager private constructor(context: Context) {
         private const val KEY_LOCKED_PACKAGES = "key_locked_packages"
         private const val KEY_MASKED_PACKAGES = "key_masked_packages"
         private const val KEY_MASTER_LOCK = "key_master_lock"
+        private const val KEY_INTERCEPTION_ENGINE = "key_interception_engine"
         private const val KEY_MASTER_NOTIFICATION_MASKING = "key_master_notification_masking"
         private const val KEY_NOTIFICATION_MASK_MODE = "key_notification_mask_mode"
         private const val KEY_RELOCK_POLICY = "key_relock_policy"

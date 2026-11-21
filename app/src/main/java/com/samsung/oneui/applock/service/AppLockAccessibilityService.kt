@@ -58,6 +58,7 @@ class AppLockAccessibilityService : AccessibilityService() {
         serviceScope.launch {
             prefsManager.lockedPackagesFlow.collectLatest { set ->
                 lockedPackagesSnapshot = set
+                updateDynamicPackageNames(set)
             }
         }
 
@@ -66,7 +67,33 @@ class AppLockAccessibilityService : AccessibilityService() {
             prefsManager.settingsFlow.collectLatest { settings ->
                 masterLockEnabled = settings.masterLockEnabled
                 relockPolicy = settings.relockPolicy
+                updateDynamicPackageNames(lockedPackagesSnapshot)
             }
+        }
+    }
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        updateDynamicPackageNames(lockedPackagesSnapshot)
+    }
+
+    private fun updateDynamicPackageNames(lockedPackages: Set<String>) {
+        try {
+            val info = serviceInfo ?: return
+            // If master lock is disabled or no apps are locked, scope strictly to our own package.
+            // This ensures banking and payment apps are NEVER monitored by the accessibility service.
+            val targets = if (!masterLockEnabled || lockedPackages.isEmpty()) {
+                arrayOf(packageName)
+            } else {
+                // Include locked apps, our own package, and home launchers for immediate exit detection
+                val launchers = systemPackageFilter.getLauncherPackages()
+                (lockedPackages + packageName + launchers).toTypedArray()
+            }
+            info.packageNames = targets
+            serviceInfo = info
+            Log.d(TAG, "Accessibility serviceInfo.packageNames scoped to ${targets.size} targets (banking apps excluded)")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to update packageNames scope", e)
         }
     }
 

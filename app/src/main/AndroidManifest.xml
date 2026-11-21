@@ -8,6 +8,7 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
 
     <!-- Query installed applications with launcher intent on Android 11+ (API 30+) -->
     <queries>
@@ -72,6 +73,23 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- Banking & Payment Friendly UsageStatsManager Background Service -->
+        <service
+            android:name=".service.AppLockUsageService"
+            android:exported="false" />
+
+        <!-- Samsung One UI Quick Panel Tile Service -->
+        <service
+            android:name=".service.AppLockTileService"
+            android:icon="@drawable/ic_lock_badge"
+            android:label="@string/quick_tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
 

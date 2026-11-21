@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.samsung.oneui.applock.data.model.AppInfo
 import com.samsung.oneui.applock.data.model.AuthType
+import com.samsung.oneui.applock.data.model.InterceptionEngine
 import com.samsung.oneui.applock.data.model.LockSettings
 import com.samsung.oneui.applock.data.model.NotificationMaskMode
 import com.samsung.oneui.applock.data.model.RelockPolicy
@@ -83,6 +84,7 @@ import com.samsung.oneui.applock.ui.theme.OneUITypography
 fun MainScreen(
     viewModel: MainViewModel,
     onEnableAccessibility: () -> Unit,
+    onEnableUsageAccess: () -> Unit,
     onEnableNotificationListener: () -> Unit,
     onRequestPostNotifications: () -> Unit,
     onEnableBatteryOptimization: () -> Unit,
@@ -164,6 +166,7 @@ fun MainScreen(
                 PermissionSetupCard(
                     state = permissionState,
                     onEnableAccessibility = onEnableAccessibility,
+                    onEnableUsageAccess = onEnableUsageAccess,
                     onEnableNotificationListener = onEnableNotificationListener,
                     onRequestPostNotifications = onRequestPostNotifications,
                     onEnableBatteryOptimization = onEnableBatteryOptimization,
@@ -220,6 +223,65 @@ fun MainScreen(
                             checked = settings.masterLockEnabled,
                             onCheckedChange = { viewModel.setMasterLock(it) }
                         )
+                    }
+
+                    OneUIDivider(insetStart = false)
+
+                    // Interception Engine Selector (Accessibility vs Banking-Friendly Usage Access)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 12.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(OneUITheme.extraColors.pillBackground, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.AdminPanelSettings,
+                                    contentDescription = null,
+                                    tint = OneUITheme.extraColors.textPrimary,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Interception Engine",
+                                    style = OneUITypography.bodyLarge,
+                                    color = OneUITheme.extraColors.textPrimary
+                                )
+                                Text(
+                                    text = when (settings.interceptionEngine) {
+                                        InterceptionEngine.ACCESSIBILITY -> "Accessibility (Instant overlay)"
+                                        InterceptionEngine.USAGE_ACCESS -> "Banking-Friendly (Zero bank blocks)"
+                                    },
+                                    style = OneUITypography.bodySmall,
+                                    color = OneUITheme.extraColors.textSecondary
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OneUIFilterChip(
+                                selected = settings.interceptionEngine == InterceptionEngine.ACCESSIBILITY,
+                                label = "Accessibility",
+                                onClick = { viewModel.setInterceptionEngine(InterceptionEngine.ACCESSIBILITY) }
+                            )
+                            OneUIFilterChip(
+                                selected = settings.interceptionEngine == InterceptionEngine.USAGE_ACCESS,
+                                label = "Banking-Friendly (Usage Access)",
+                                onClick = { viewModel.setInterceptionEngine(InterceptionEngine.USAGE_ACCESS) }
+                            )
+                        }
                     }
 
                     OneUIDivider(insetStart = false)

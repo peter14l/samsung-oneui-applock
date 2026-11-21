@@ -6,16 +6,19 @@ import androidx.lifecycle.viewModelScope
 import com.samsung.oneui.applock.AppLockApplication
 import com.samsung.oneui.applock.data.model.AppInfo
 import com.samsung.oneui.applock.data.model.AuthType
+import com.samsung.oneui.applock.data.model.InterceptionEngine
 import com.samsung.oneui.applock.data.model.LockSettings
 import com.samsung.oneui.applock.data.model.NotificationMaskMode
 import com.samsung.oneui.applock.data.model.RelockPolicy
 import com.samsung.oneui.applock.data.repository.AppLockRepository
+import com.samsung.oneui.applock.service.AppLockUsageService
 import com.samsung.oneui.applock.util.PermissionHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -74,18 +77,44 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         loadInstalledApps()
         refreshPermissionState()
+
+        // Sync UsageService with engine state
+        viewModelScope.launch {
+            settings.collectLatest { s ->
+                val context = getApplication<Application>()
+                if (s.interceptionEngine == InterceptionEngine.USAGE_ACCESS && s.masterLockEnabled) {
+                    AppLockUsageService.start(context)
+                } else {
+                    AppLockUsageService.stop(context)
+                }
+            }
+        }
     }
 
     fun refreshPermissionState() {
         val context = getApplication<Application>()
+        val currentEngine = settings.value.interceptionEngine
         _permissionState.value = PermissionState(
             isAccessibilityEnabled = PermissionHelper.isAccessibilityServiceEnabled(context),
+            isUsageAccessGranted = PermissionHelper.isUsageAccessGranted(context),
             isNotificationListenerEnabled = PermissionHelper.isNotificationListenerEnabled(context),
             isPostNotificationsGranted = PermissionHelper.isPostNotificationsGranted(context),
             isBatteryOptimizationIgnored = PermissionHelper.isIgnoringBatteryOptimizations(context),
-            isDeviceAdminActive = PermissionHelper.isDeviceAdminActive(context)
+            isDeviceAdminActive = PermissionHelper.isDeviceAdminActive(context),
+            interceptionEngine = currentEngine
         )
         repository.refreshState()
+    }
+
+    fun setInterceptionEngine(engine: InterceptionEngine) {
+        repository.setInterceptionEngine(engine)
+        val context = getApplication<Application>()
+        if (engine == InterceptionEngine.USAGE_ACCESS && settings.value.masterLockEnabled) {
+            AppLockUsageService.start(context)
+        } else {
+            AppLockUsageService.stop(context)
+        }
+        refreshPermissionState()
     }
 
     fun loadInstalledApps() {

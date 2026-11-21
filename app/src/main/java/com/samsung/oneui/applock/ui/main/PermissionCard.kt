@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.samsung.oneui.applock.data.model.InterceptionEngine
 import com.samsung.oneui.applock.ui.components.OneUICard
 import com.samsung.oneui.applock.ui.components.OneUIDivider
 import com.samsung.oneui.applock.ui.theme.OneUIBlue
@@ -46,6 +47,7 @@ import com.samsung.oneui.applock.ui.theme.OneUITypography
 fun PermissionSetupCard(
     state: PermissionState,
     onEnableAccessibility: () -> Unit,
+    onEnableUsageAccess: () -> Unit,
     onEnableNotificationListener: () -> Unit,
     onRequestPostNotifications: () -> Unit,
     onEnableBatteryOptimization: () -> Unit,
@@ -106,14 +108,24 @@ fun PermissionSetupCard(
 
                 OneUIDivider(insetStart = false)
 
-                // 1. Accessibility Service
-                PermissionItem(
-                    title = "App Interception Service",
-                    subtitle = "Required to detect when locked apps open",
-                    icon = Icons.Rounded.AccessibilityNew,
-                    isGranted = state.isAccessibilityEnabled,
-                    onClick = onEnableAccessibility
-                )
+                // 1. Interception Engine Permission
+                if (state.interceptionEngine == InterceptionEngine.ACCESSIBILITY) {
+                    PermissionItem(
+                        title = "App Interception Service",
+                        subtitle = "Required to detect when locked apps open",
+                        icon = Icons.Rounded.AccessibilityNew,
+                        isGranted = state.isAccessibilityEnabled,
+                        onClick = onEnableAccessibility
+                    )
+                } else {
+                    PermissionItem(
+                        title = "Usage Access (Banking-Friendly)",
+                        subtitle = "Required to detect apps without triggering bank blocks",
+                        icon = Icons.Rounded.Security,
+                        isGranted = state.isUsageAccessGranted,
+                        onClick = onEnableUsageAccess
+                    )
+                }
 
                 OneUIDivider(insetStart = true)
 
