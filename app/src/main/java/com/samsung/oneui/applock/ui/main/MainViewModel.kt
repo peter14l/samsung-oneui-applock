@@ -13,6 +13,9 @@ import com.samsung.oneui.applock.data.model.NotificationMaskMode
 import com.samsung.oneui.applock.data.model.RelockPolicy
 import com.samsung.oneui.applock.data.repository.AppLockRepository
 import com.samsung.oneui.applock.service.AppLockUsageService
+import com.samsung.oneui.applock.update.AppUpdater
+import com.samsung.oneui.applock.update.UpdateInfo
+import com.samsung.oneui.applock.update.UpdateState
 import com.samsung.oneui.applock.util.PermissionHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,6 +43,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _permissionState = MutableStateFlow(PermissionState())
     val permissionState: StateFlow<PermissionState> = _permissionState.asStateFlow()
+
+    private val _updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
+    val updateState: StateFlow<UpdateState> = _updateState.asStateFlow()
 
     val displayedApps: StateFlow<List<AppInfo>> = combine(
         _rawApps,
@@ -78,6 +84,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         loadInstalledApps()
         refreshPermissionState()
+        silentCheckForUpdates()
 
         // Sync UsageService with engine state
         viewModelScope.launch {
@@ -195,5 +202,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setLockDesignStyle(style: LockDesignStyle) {
         repository.setLockDesignStyle(style)
+    }
+
+    private fun silentCheckForUpdates() {
+        viewModelScope.launch {
+            val result = AppUpdater.checkForUpdate()
+            if (result is UpdateState.Available) {
+                _updateState.value = result
+            }
+        }
+    }
+
+    fun checkForUpdates() {
+        if (_updateState.value is UpdateState.Downloading || _updateState.value is UpdateState.Installing) {
+            return
+        }
+        viewModelScope.launch {
+            _updateState.value = UpdateState.Checking
+            _updateState.value = AppUpdater.checkForUpdate()
+        }
+    }
+
+    fun startUpdateDownload(info: UpdateInfo) {
+        viewModelScope.launch {
+            AppUpdater.downloadAndInstall(getApplication(), info) { state ->
+                _updateState.value = state
+            }
+        }
+    }
+
+    fun resetUpdateStateIfFinished() {
+        val current = _updateState.value
+        if (current is UpdateState.UpToDate || current is UpdateState.Error || current is UpdateState.Checking) {
+            _updateState.value = UpdateState.Idle
+        }
     }
 }

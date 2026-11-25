@@ -104,6 +104,9 @@ class LockOverlayActivity : FragmentActivity() {
             WindowManager.LayoutParams.FLAG_SECURE,
             WindowManager.LayoutParams.FLAG_SECURE
         )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            setRecentsScreenshotEnabled(false)
+        }
 
         prefsManager = EncryptedPreferencesManager.getInstance(this)
 
@@ -190,6 +193,9 @@ class LockOverlayActivity : FragmentActivity() {
 
     override fun onResume() {
         super.onResume()
+        window.decorView.post {
+            com.samsung.oneui.applock.service.InstantShieldOverlay.dismiss()
+        }
         val settings = prefsManager.settingsFlow.value
         if (!isAuthenticating) {
             // Trigger biometrics in SYSTEM_CREDENTIAL mode, or in CUSTOM_PIN mode if biometrics enabled
@@ -303,6 +309,11 @@ class LockOverlayActivity : FragmentActivity() {
         } finally {
             finishWithZeroAnimation()
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        com.samsung.oneui.applock.service.InstantShieldOverlay.dismiss()
     }
 
     private fun finishWithZeroAnimation() {

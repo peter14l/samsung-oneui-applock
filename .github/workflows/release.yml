@@ -68,7 +68,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.vars.outputs.tag }}
-          name: "Samsung One UI App Locker ${{ steps.vars.outputs.tag }}"
+          name: "App Lock ${{ steps.vars.outputs.tag }}"
           draft: false
           prerelease: false
           generate_release_notes: true
@@ -76,3 +76,52 @@ jobs:
             app/build/outputs/apk/release/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate version.json & Upload Split APKs to Cloudflare R2
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          TAG: ${{ steps.vars.outputs.tag }}
+          R2_PUBLIC_URL: "https://pub-3efdf98689b640149aa277ccc5daea43.r2.dev"
+        run: |
+          if [ -z "$R2_ACCOUNT_ID" ] || [ -z "$R2_ACCESS_KEY_ID" ] || [ -z "$R2_SECRET_ACCESS_KEY" ] || [ -z "$R2_BUCKET_NAME" ]; then
+            echo "Skipping Cloudflare R2 upload: one or more R2_* secrets are not configured."
+            exit 0
+          fi
+
+          export VERSION_CODE=$(grep -oP 'versionCode\s*=\s*\K\d+' app/build.gradle.kts)
+          export VERSION_NAME=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          export RELEASE_NOTES=$(git log -1 --pretty=%s)
+
+          python3 -c '
+          import json, os
+          tag = os.environ["TAG"]
+          base = os.environ["R2_PUBLIC_URL"]
+          data = {
+              "versionCode": int(os.environ["VERSION_CODE"]),
+              "versionName": os.environ["VERSION_NAME"],
+              "tag": tag,
+              "releaseNotes": os.environ["RELEASE_NOTES"],
+              "apks": {
+                  "arm64-v8a": f"{base}/releases/{tag}/app-arm64-v8a-release.apk",
+                  "armeabi-v7a": f"{base}/releases/{tag}/app-armeabi-v7a-release.apk",
+                  "x86_64": f"{base}/releases/{tag}/app-x86_64-release.apk",
+                  "universal": f"{base}/releases/{tag}/app-universal-release.apk",
+              },
+          }
+          with open("version.json", "w") as f:
+              json.dump(data, f, indent=2)
+          '
+
+          ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          aws s3 cp app/build/outputs/apk/release/ "s3://${R2_BUCKET_NAME}/releases/${TAG}/" \
+            --recursive --exclude "*" --include "*.apk" --endpoint-url "${ENDPOINT}"
+          aws s3 cp version.json "s3://${R2_BUCKET_NAME}/version.json" \
+            --content-type "application/json" \
+            --cache-control "no-cache, max-age=0" \
+            --endpoint-url "${ENDPOINT}"

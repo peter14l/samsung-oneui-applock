@@ -9,6 +9,7 @@ import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import androidx.core.content.ContextCompat
 import com.samsung.oneui.applock.data.model.InterceptionEngine
+import com.samsung.oneui.applock.data.model.LockDesignStyle
 import com.samsung.oneui.applock.data.model.RelockPolicy
 import com.samsung.oneui.applock.data.pref.EncryptedPreferencesManager
 import com.samsung.oneui.applock.ui.lock.LockOverlayActivity
@@ -38,6 +39,9 @@ class AppLockAccessibilityService : AccessibilityService() {
 
     @Volatile
     private var relockPolicy: RelockPolicy = RelockPolicy.SCREEN_OFF
+
+    @Volatile
+    private var lockDesignStyle: LockDesignStyle = LockDesignStyle.DYNAMIC_THUMB
 
     private var lastForegroundPackage: String? = null
 
@@ -79,6 +83,7 @@ class AppLockAccessibilityService : AccessibilityService() {
                 masterLockEnabled = settings.masterLockEnabled
                 currentEngine = settings.interceptionEngine
                 relockPolicy = settings.relockPolicy
+                lockDesignStyle = settings.lockDesignStyle
                 updateDynamicPackageNames(lockedPackagesSnapshot)
             }
         }
@@ -143,6 +148,7 @@ class AppLockAccessibilityService : AccessibilityService() {
                 return
             }
 
+            InstantShieldOverlay.show(this, lockDesignStyle)
             launchLockOverlay(eventPackage)
         }
     }

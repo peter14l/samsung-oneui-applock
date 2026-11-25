@@ -21,6 +21,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.samsung.oneui.applock.R
 import com.samsung.oneui.applock.data.model.InterceptionEngine
+import com.samsung.oneui.applock.data.model.LockDesignStyle
 import com.samsung.oneui.applock.data.model.RelockPolicy
 import com.samsung.oneui.applock.data.pref.EncryptedPreferencesManager
 import com.samsung.oneui.applock.ui.lock.LockOverlayActivity
@@ -63,6 +64,9 @@ class AppLockUsageService : Service() {
 
     @Volatile
     private var relockPolicy: RelockPolicy = RelockPolicy.SCREEN_OFF
+
+    @Volatile
+    private var lockDesignStyle: LockDesignStyle = LockDesignStyle.DYNAMIC_THUMB
 
     @Volatile
     private var isScreenOn: Boolean = true
@@ -125,6 +129,7 @@ class AppLockUsageService : Service() {
                 masterLockEnabled = settings.masterLockEnabled
                 currentEngine = settings.interceptionEngine
                 relockPolicy = settings.relockPolicy
+                lockDesignStyle = settings.lockDesignStyle
 
                 if (currentEngine == InterceptionEngine.USAGE_ACCESS && masterLockEnabled) {
                     checkAndResumePolling()
@@ -195,7 +200,7 @@ class AppLockUsageService : Service() {
                 } catch (e: Exception) {
                     Log.e(TAG, "Error in usage stats detection loop", e)
                 }
-                delay(200)
+                delay(90)
             }
         }
     }
@@ -279,6 +284,7 @@ class AppLockUsageService : Service() {
                 return
             }
             lastForegroundPackage = eventPackage
+            InstantShieldOverlay.show(this, lockDesignStyle)
             launchLockOverlay(eventPackage)
         } else {
             lastForegroundPackage = eventPackage

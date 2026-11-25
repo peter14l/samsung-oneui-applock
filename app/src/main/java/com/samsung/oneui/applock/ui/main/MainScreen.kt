@@ -34,6 +34,7 @@ import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.Password
 import androidx.compose.material.icons.rounded.Security
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.CircularProgressIndicator
@@ -62,6 +63,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
+import com.samsung.oneui.applock.BuildConfig
 import com.samsung.oneui.applock.data.model.AppInfo
 import com.samsung.oneui.applock.data.model.AuthType
 import com.samsung.oneui.applock.data.model.InterceptionEngine
@@ -69,6 +71,8 @@ import com.samsung.oneui.applock.data.model.LockDesignStyle
 import com.samsung.oneui.applock.data.model.LockSettings
 import com.samsung.oneui.applock.data.model.NotificationMaskMode
 import com.samsung.oneui.applock.data.model.RelockPolicy
+import com.samsung.oneui.applock.update.AppUpdater
+import com.samsung.oneui.applock.update.UpdateState
 import com.samsung.oneui.applock.ui.components.OneUICard
 import com.samsung.oneui.applock.ui.components.OneUICollapsedTopBar
 import com.samsung.oneui.applock.ui.components.OneUIDivider
@@ -101,10 +105,13 @@ fun MainScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val permissionState by viewModel.permissionState.collectAsState()
     val lockedCount by viewModel.lockedCount.collectAsState()
+    val updateState by viewModel.updateState.collectAsState()
 
     var showPinDialog by remember { mutableStateOf(false) }
     var showDonationDialog by remember { mutableStateOf(false) }
     var showHideAppsHelpDialog by remember { mutableStateOf(false) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
+    val updateContext = androidx.compose.ui.platform.LocalContext.current
     val listState = rememberLazyListState()
 
     val isTopBarCollapsed by remember {
@@ -132,6 +139,21 @@ fun MainScreen(
     if (showHideAppsHelpDialog) {
         HideAppsHelpDialog(
             onDismiss = { showHideAppsHelpDialog = false }
+        )
+    }
+
+    if (showUpdateDialog && updateState !is UpdateState.Idle) {
+        UpdateDialog(
+            updateState = updateState,
+            onStartDownload = { info -> viewModel.startUpdateDownload(info) },
+            onGrantInstallPermission = {
+                updateContext.startActivity(AppUpdater.getInstallUnknownAppsIntent(updateContext))
+            },
+            onRetryCheck = { viewModel.checkForUpdates() },
+            onDismiss = {
+                showUpdateDialog = false
+                viewModel.resetUpdateStateIfFinished()
+            }
         )
     }
 
@@ -777,6 +799,70 @@ fun MainScreen(
                 )
 
                 OneUICard {
+                    // In-App Updater Row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showUpdateDialog = true
+                                if (updateState is UpdateState.Idle || updateState is UpdateState.UpToDate || updateState is UpdateState.Error) {
+                                    viewModel.checkForUpdates()
+                                }
+                            }
+                            .padding(horizontal = 20.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(OneUIBlue.copy(alpha = 0.12f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.SystemUpdate,
+                                contentDescription = null,
+                                tint = OneUIBlue,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "App Updates",
+                                style = OneUITypography.bodyLarge,
+                                color = OneUITheme.extraColors.textPrimary
+                            )
+                            val available = updateState as? UpdateState.Available
+                            Text(
+                                text = if (available != null) {
+                                    "New version v${available.info.versionName} available (${available.info.abi})"
+                                } else {
+                                    "Current version v${BuildConfig.VERSION_NAME} • Tap to check"
+                                },
+                                style = OneUITypography.bodySmall,
+                                color = if (available != null) OneUIGreen else OneUITheme.extraColors.textSecondary
+                            )
+                        }
+                        val hasUpdate = updateState is UpdateState.Available
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    (if (hasUpdate) OneUIGreen else OneUIBlue).copy(alpha = 0.12f),
+                                    RoundedCornerShape(OneUIPillRadius)
+                                )
+                                .padding(horizontal = 14.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = if (hasUpdate) "Update" else "Check",
+                                color = if (hasUpdate) OneUIGreen else OneUIBlue,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
+                    OneUIDivider(insetStart = true)
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
