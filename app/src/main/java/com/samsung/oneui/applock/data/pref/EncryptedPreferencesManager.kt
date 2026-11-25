@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.concurrent.ConcurrentHashMap
+import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.PBEKeySpec
 
 class EncryptedPreferencesManager private constructor(context: Context) {
 
@@ -261,7 +263,8 @@ class EncryptedPreferencesManager private constructor(context: Context) {
 
         val storedHash = prefs.getString(KEY_CUSTOM_PIN_HASH, null) ?: return false
         val salt = getOrCreateSalt()
-        val computedHash = hashPin(pin, salt)
+        val isPbkdf2 = storedHash.startsWith(PBKDF2_PREFIX)
+        val computedHash = if (isPbkdf2) hashPin(pin, salt) else legacyHashPin(pin, salt)
 
         // Constant-time comparison to prevent timing attacks
         val matches = MessageDigest.isEqual(
@@ -270,6 +273,10 @@ class EncryptedPreferencesManager private constructor(context: Context) {
         )
 
         if (matches) {
+            if (!isPbkdf2) {
+                // Transparently upgrade legacy SHA-256 PIN hash to PBKDF2
+                prefs.edit().putString(KEY_CUSTOM_PIN_HASH, hashPin(pin, salt)).apply()
+            }
             resetFailedPinAttempts()
             return true
         } else {
@@ -368,6 +375,13 @@ class EncryptedPreferencesManager private constructor(context: Context) {
     }
 
     private fun hashPin(pin: String, salt: String): String {
+        val spec = PBEKeySpec(pin.toCharArray(), salt.toByteArray(Charsets.UTF_8), PBKDF2_ITERATIONS, PBKDF2_KEY_BITS)
+        val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+        val derived = factory.generateSecret(spec).encoded
+        return PBKDF2_PREFIX + derived.joinToString("") { "%02x".format(it) }
+    }
+
+    private fun legacyHashPin(pin: String, salt: String): String {
         val md = MessageDigest.getInstance("SHA-256")
         md.update(salt.toByteArray(Charsets.UTF_8))
         val digest = md.digest(pin.toByteArray(Charsets.UTF_8))
@@ -376,6 +390,9 @@ class EncryptedPreferencesManager private constructor(context: Context) {
 
     companion object {
         private const val TAG = "EncryptedPrefs"
+        private const val PBKDF2_PREFIX = "pbkdf2:"
+        private const val PBKDF2_ITERATIONS = 12_000
+        private const val PBKDF2_KEY_BITS = 256
         private const val PREFS_FILE_NAME = "samsung_oneui_applock_secure_prefs"
         private const val FALLBACK_PREFS_FILE = "samsung_oneui_applock_fallback_prefs"
 

@@ -108,13 +108,13 @@ fun SamsungOneUIAppLockTheme(
         OneUIExtraColors(
             cardBackground = OneUILightSurface,
             cardBorder = OneUILightCardBorder,
-            dividerColor = OneUIDarkDivider, // replaced below
+            dividerColor = OneUILightDivider,
             textPrimary = OneUILightTextPrimary,
             textSecondary = OneUILightTextSecondary,
             subtitleColor = OneUILightSubtitle,
             pillBackground = OneUIGrayPill,
             accentBlue = accentColor
-        ).copy(dividerColor = OneUILightDivider)
+        )
     }
 
     val view = LocalView.current

@@ -39,7 +39,7 @@ class NotificationGuardService : NotificationListenerService() {
         }
 
         // 2. Prevent infinite loops: check if this is already a replacement notification we posted
-        if (sbn.tag == REPLACEMENT_NOTIFICATION_TAG || suppressedKeys.contains(sbnKey)) {
+        if (sbn.tag?.startsWith(REPLACEMENT_NOTIFICATION_TAG) == true || suppressedKeys.contains(sbnKey)) {
             suppressedKeys.remove(sbnKey)
             return
         }
@@ -119,8 +119,9 @@ class NotificationGuardService : NotificationListenerService() {
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
         try {
+            val safeTag = "${REPLACEMENT_NOTIFICATION_TAG}_${targetPackage}_${sbn.tag ?: ""}"
             notificationManager?.notify(
-                REPLACEMENT_NOTIFICATION_TAG,
+                safeTag,
                 sbn.id,
                 maskedNotification
             )

@@ -44,6 +44,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -78,12 +79,22 @@ class LockOverlayActivity : FragmentActivity() {
 
     private lateinit var prefsManager: EncryptedPreferencesManager
     private var targetPackage: String? = null
-    private var targetAppName: String = "Application"
-    private var targetAppIcon: Drawable? = null
+    private var targetAppName by mutableStateOf("Application")
+    private var targetAppIcon by mutableStateOf<Drawable?>(null)
 
     private lateinit var executor: Executor
     private var biometricPrompt: BiometricPrompt? = null
     private var isAuthenticating: Boolean = false
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val newPkg = intent.getStringExtra(EXTRA_TARGET_PACKAGE)
+        if (!newPkg.isNullOrEmpty()) {
+            targetPackage = newPkg
+            loadAppMetadata(newPkg)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -115,15 +126,10 @@ class LockOverlayActivity : FragmentActivity() {
         })
 
         setContent {
-            val settings = prefsManager.settingsFlow.value
+            val settings by prefsManager.settingsFlow.collectAsState()
             val designStyle = settings.lockDesignStyle
             val isSystemDark = isSystemInDarkTheme()
-            val isDark = when (designStyle) {
-                LockDesignStyle.VAULT_DARK -> true
-                LockDesignStyle.SWISS_MONO -> isSystemDark
-                LockDesignStyle.DYNAMIC_THUMB -> isSystemDark
-            }
-            val useDynamic = designStyle == LockDesignStyle.DYNAMIC_THUMB
+            val (isDark, useDynamic) = resolveLockThemeFlags(designStyle, isSystemDark)
 
             SamsungOneUIAppLockTheme(darkTheme = isDark, dynamicColor = useDynamic) {
                 val palette = rememberLockStylePalette(designStyle, isDark)
@@ -207,6 +213,7 @@ class LockOverlayActivity : FragmentActivity() {
             targetAppIcon = pm.getApplicationIcon(appInfo)
         } catch (e: Exception) {
             targetAppName = pkg
+            targetAppIcon = null
         }
     }
 
@@ -311,64 +318,6 @@ class LockOverlayActivity : FragmentActivity() {
     companion object {
         const val EXTRA_TARGET_PACKAGE = "extra_target_package"
         private const val TAG = "LockOverlayActivity"
-    }
-}
-
-private data class LockStylePalette(
-    val background: Color,
-    val sheetBackground: Color,
-    val sheetBorder: Color?,
-    val textPrimary: Color,
-    val textSecondary: Color,
-    val accent: Color,
-    val keyBg: Color,
-    val keyBorder: Color?,
-    val dotInactive: Color
-)
-
-@Composable
-private fun rememberLockStylePalette(style: LockDesignStyle, isDark: Boolean): LockStylePalette {
-    val m3 = MaterialTheme.colorScheme
-    return when (style) {
-        LockDesignStyle.DYNAMIC_THUMB -> LockStylePalette(
-            background = m3.background,
-            sheetBackground = m3.surfaceContainerLow,
-            sheetBorder = null,
-            textPrimary = m3.onBackground,
-            textSecondary = m3.onSurfaceVariant,
-            accent = m3.primary,
-            keyBg = m3.surfaceContainerHigh,
-            keyBorder = null,
-            dotInactive = m3.outlineVariant
-        )
-        LockDesignStyle.VAULT_DARK -> LockStylePalette(
-            background = Color(0xFF0B0D12),
-            sheetBackground = Color(0xFF131722),
-            sheetBorder = Color(0xFF232A3B),
-            textPrimary = Color(0xFFF5F7FA),
-            textSecondary = Color(0xFF94A3B8),
-            accent = Color(0xFF5E6AD2),
-            keyBg = Color(0xFF1B2030),
-            keyBorder = Color(0xFF2A3247),
-            dotInactive = Color(0xFF2B3245)
-        )
-        LockDesignStyle.SWISS_MONO -> {
-            val bg = if (isDark) Color(0xFF000000) else Color(0xFFFFFFFF)
-            val fg = if (isDark) Color(0xFFFFFFFF) else Color(0xFF000000)
-            val muted = if (isDark) Color(0xFFA0A0A0) else Color(0xFF5C5C5C)
-            val border = if (isDark) Color(0xFF2E2E2E) else Color(0xFFD4D4D4)
-            LockStylePalette(
-                background = bg,
-                sheetBackground = bg,
-                sheetBorder = border,
-                textPrimary = fg,
-                textSecondary = muted,
-                accent = fg,
-                keyBg = Color.Transparent,
-                keyBorder = border,
-                dotInactive = border
-            )
-        }
     }
 }
 
@@ -650,43 +599,6 @@ private fun SystemCredentialOverlayContent(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun SecurityStatusPill(
-    text: String,
-    isError: Boolean,
-    palette: LockStylePalette
-) {
-    val errorRed = Color(0xFFFF3B30)
-    Surface(
-        shape = RoundedCornerShape(50),
-        color = if (isError) errorRed.copy(alpha = 0.14f) else palette.accent.copy(alpha = 0.10f),
-        border = BorderStroke(
-            width = 1.dp,
-            color = if (isError) errorRed.copy(alpha = 0.4f) else palette.accent.copy(alpha = 0.22f)
-        )
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Shield,
-                contentDescription = null,
-                tint = if (isError) errorRed else palette.accent,
-                modifier = Modifier.size(14.dp)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = text,
-                fontSize = 12.sp,
-                fontWeight = if (isError) FontWeight.SemiBold else FontWeight.Medium,
-                color = if (isError) errorRed else palette.textSecondary,
-                textAlign = TextAlign.Center
-            )
         }
     }
 }

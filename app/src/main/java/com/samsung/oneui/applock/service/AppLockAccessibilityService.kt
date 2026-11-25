@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
+import androidx.core.content.ContextCompat
 import com.samsung.oneui.applock.data.model.InterceptionEngine
 import com.samsung.oneui.applock.data.model.RelockPolicy
 import com.samsung.oneui.applock.data.pref.EncryptedPreferencesManager
@@ -57,7 +58,12 @@ class AppLockAccessibilityService : AccessibilityService() {
         systemPackageFilter = SystemPackageFilter(this)
 
         val filter = IntentFilter(Intent.ACTION_SCREEN_OFF)
-        registerReceiver(screenOffReceiver, filter)
+        ContextCompat.registerReceiver(
+            this,
+            screenOffReceiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
 
         // Sync locked packages via Flow
         serviceScope.launch {
