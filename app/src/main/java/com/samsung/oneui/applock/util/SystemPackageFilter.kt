@@ -36,8 +36,10 @@ class SystemPackageFilter(private val context: Context) {
             info.activityInfo?.packageName?.let { cachedLauncherPackages.add(it) }
         }
 
-        // Add common Samsung launcher & system UI components
-        cachedLauncherPackages.add("com.sec.android.app.launcher") // Samsung One UI Home
+        // Add common OEM launchers (Samsung, Motorola, AOSP, Pixel)
+        cachedLauncherPackages.add("com.sec.android.app.launcher")
+        cachedLauncherPackages.add("com.motorola.launcher3")
+        cachedLauncherPackages.add("com.motorola.launcherconfig")
         cachedLauncherPackages.add("com.android.launcher3")
         cachedLauncherPackages.add("com.google.android.apps.nexuslauncher")
 

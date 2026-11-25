@@ -7,6 +7,7 @@ import com.samsung.oneui.applock.AppLockApplication
 import com.samsung.oneui.applock.data.model.AppInfo
 import com.samsung.oneui.applock.data.model.AuthType
 import com.samsung.oneui.applock.data.model.InterceptionEngine
+import com.samsung.oneui.applock.data.model.LockDesignStyle
 import com.samsung.oneui.applock.data.model.LockSettings
 import com.samsung.oneui.applock.data.model.NotificationMaskMode
 import com.samsung.oneui.applock.data.model.RelockPolicy
@@ -190,5 +191,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setSelfLock(enabled: Boolean) {
         repository.setSelfLock(enabled)
+    }
+
+    fun setLockDesignStyle(style: LockDesignStyle) {
+        repository.setLockDesignStyle(style)
     }
 }

@@ -9,6 +9,7 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.samsung.oneui.applock.data.model.AuthType
 import com.samsung.oneui.applock.data.model.InterceptionEngine
+import com.samsung.oneui.applock.data.model.LockDesignStyle
 import com.samsung.oneui.applock.data.model.LockSettings
 import com.samsung.oneui.applock.data.model.NotificationMaskMode
 import com.samsung.oneui.applock.data.model.RelockPolicy
@@ -109,6 +110,12 @@ class EncryptedPreferencesManager private constructor(context: Context) {
         val isHideLockedApps = prefs.getBoolean(KEY_HIDE_LOCKED_APPS, false)
         val isGuardPlayStore = prefs.getBoolean(KEY_GUARD_PLAY_STORE, true)
         val isSelfLock = prefs.getBoolean(KEY_SELF_LOCK, true)
+        val designStyleName = prefs.getString(KEY_LOCK_DESIGN_STYLE, LockDesignStyle.DYNAMIC_THUMB.name)
+        val lockDesignStyle = try {
+            LockDesignStyle.valueOf(designStyleName ?: LockDesignStyle.DYNAMIC_THUMB.name)
+        } catch (e: Exception) {
+            LockDesignStyle.DYNAMIC_THUMB
+        }
 
         _settingsFlow.value = LockSettings(
             masterLockEnabled = masterLock,
@@ -123,7 +130,8 @@ class EncryptedPreferencesManager private constructor(context: Context) {
             isDeviceAdminEnabled = isDeviceAdmin,
             isHideLockedAppsEnabled = isHideLockedApps,
             isGuardPlayStoreAndSettings = isGuardPlayStore,
-            isSelfLockEnabled = isSelfLock
+            isSelfLockEnabled = isSelfLock,
+            lockDesignStyle = lockDesignStyle
         )
     }
 
@@ -342,6 +350,11 @@ class EncryptedPreferencesManager private constructor(context: Context) {
         _settingsFlow.value = _settingsFlow.value.copy(isSelfLockEnabled = enabled)
     }
 
+    fun setLockDesignStyle(style: LockDesignStyle) {
+        prefs.edit().putString(KEY_LOCK_DESIGN_STYLE, style.name).apply()
+        _settingsFlow.value = _settingsFlow.value.copy(lockDesignStyle = style)
+    }
+
     private fun getOrCreateSalt(): String {
         var salt = prefs.getString(KEY_PIN_SALT, null)
         if (salt.isNullOrEmpty()) {
@@ -383,6 +396,7 @@ class EncryptedPreferencesManager private constructor(context: Context) {
         private const val KEY_HIDE_LOCKED_APPS = "key_hide_locked_apps"
         private const val KEY_GUARD_PLAY_STORE = "key_guard_play_store"
         private const val KEY_SELF_LOCK = "key_self_lock"
+        private const val KEY_LOCK_DESIGN_STYLE = "key_lock_design_style"
 
         @Volatile
         private var INSTANCE: EncryptedPreferencesManager? = null

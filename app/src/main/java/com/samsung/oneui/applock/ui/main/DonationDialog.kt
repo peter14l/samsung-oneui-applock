@@ -89,7 +89,7 @@ fun DonationDialog(
                 Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
-                    text = "App Lock is 100% free, private, and ad-free. If this app helps protect your device, consider donating via UPI / Samsung Pay!",
+                    text = "App Lock is 100% free, private, and ad-free. If this app helps protect your device, consider donating via UPI!",
                     style = OneUITypography.bodySmall,
                     color = OneUITheme.extraColors.textSecondary,
                     textAlign = TextAlign.Center
@@ -109,7 +109,7 @@ fun DonationDialog(
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.samsung_pay_qr),
-                        contentDescription = "Samsung Pay UPI QR",
+                        contentDescription = "UPI QR",
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -185,7 +185,7 @@ fun DonationDialog(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Open UPI / Samsung Pay App",
+                        text = "Open UPI App",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = Color.White

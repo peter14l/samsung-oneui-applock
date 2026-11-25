@@ -63,6 +63,7 @@ import androidx.core.graphics.drawable.toBitmap
 import com.samsung.oneui.applock.data.model.AppInfo
 import com.samsung.oneui.applock.data.model.AuthType
 import com.samsung.oneui.applock.data.model.InterceptionEngine
+import com.samsung.oneui.applock.data.model.LockDesignStyle
 import com.samsung.oneui.applock.data.model.LockSettings
 import com.samsung.oneui.applock.data.model.NotificationMaskMode
 import com.samsung.oneui.applock.data.model.RelockPolicy
@@ -310,6 +311,10 @@ fun MainScreen(
                             }
                             Spacer(modifier = Modifier.width(14.dp))
                             Column(modifier = Modifier.weight(1f)) {
+                                val bioContext = androidx.compose.ui.platform.LocalContext.current
+                                val bioStatus = remember(bioContext) {
+                                    com.samsung.oneui.applock.util.PermissionHelper.getBiometricStatusLabel(bioContext)
+                                }
                                 Text(
                                     text = "Unlock Method",
                                     style = OneUITypography.bodyLarge,
@@ -317,8 +322,8 @@ fun MainScreen(
                                 )
                                 Text(
                                     text = when (settings.authType) {
-                                        AuthType.SYSTEM_CREDENTIAL -> "Samsung Device Lock (Fingerprint/PIN)"
-                                        AuthType.CUSTOM_PIN -> "Dedicated App PIN (Custom)"
+                                        AuthType.SYSTEM_CREDENTIAL -> "Device Lock ($bioStatus)"
+                                        AuthType.CUSTOM_PIN -> "Dedicated App PIN ($bioStatus)"
                                     },
                                     style = OneUITypography.bodySmall,
                                     color = OneUITheme.extraColors.textSecondary
@@ -359,7 +364,7 @@ fun MainScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "Use Biometrics with App PIN",
+                                    text = "Use Face / Fingerprint with App PIN",
                                     style = OneUITypography.bodyMedium,
                                     color = OneUITheme.extraColors.textPrimary
                                 )
@@ -376,6 +381,39 @@ fun MainScreen(
                                 modifier = Modifier.height(36.dp)
                             ) {
                                 Text("Change Custom PIN", fontSize = 13.sp)
+                            }
+                        }
+                    }
+
+                    OneUIDivider(insetStart = false)
+
+                    // Lock Screen Design Switcher
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 12.dp)
+                    ) {
+                        Text(
+                            text = "Lock Screen Style",
+                            style = OneUITypography.bodyLarge,
+                            color = OneUITheme.extraColors.textPrimary
+                        )
+                        Text(
+                            text = settings.lockDesignStyle.description,
+                            style = OneUITypography.bodySmall,
+                            color = OneUITheme.extraColors.textSecondary
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            LockDesignStyle.entries.forEach { style ->
+                                OneUIFilterChip(
+                                    selected = settings.lockDesignStyle == style,
+                                    label = style.displayName,
+                                    onClick = { viewModel.setLockDesignStyle(style) }
+                                )
                             }
                         }
                     }
@@ -472,7 +510,7 @@ fun MainScreen(
                             Text(
                                 text = if (isDeviceOwner && settings.isHideLockedAppsEnabled) "Locked apps hidden from home screen & search"
                                        else if (isDeviceOwner) "Auto-hide locked apps at system level"
-                                       else "Tap to configure One UI Home or ADB auto-hide",
+                                       else "Tap to configure Home launcher or ADB auto-hide",
                                 style = OneUITypography.bodySmall,
                                 color = if (isDeviceOwner && settings.isHideLockedAppsEnabled) OneUIGreen else OneUITheme.extraColors.textSecondary
                             )
@@ -758,7 +796,7 @@ fun MainScreen(
                         Spacer(modifier = Modifier.width(14.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Donate via UPI / Samsung Pay",
+                                text = "Donate via UPI",
                                 style = OneUITypography.bodyLarge,
                                 color = OneUITheme.extraColors.textPrimary
                             )

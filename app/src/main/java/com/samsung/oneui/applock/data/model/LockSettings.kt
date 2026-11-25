@@ -27,6 +27,13 @@ enum class InterceptionEngine {
 }
 
 @Keep
+enum class LockDesignStyle(val displayName: String, val description: String) {
+    DYNAMIC_THUMB("Modern Dynamic", "Material You colors with thumb-friendly bottom controls"),
+    VAULT_DARK("Vault Shield", "Dark-first slate surface with glowing security ring"),
+    SWISS_MONO("Swiss Monochrome", "High-contrast OLED black & white with crisp borders")
+}
+
+@Keep
 data class LockSettings(
     val masterLockEnabled: Boolean = true,
     val interceptionEngine: InterceptionEngine = InterceptionEngine.ACCESSIBILITY,
@@ -40,5 +47,6 @@ data class LockSettings(
     val isDeviceAdminEnabled: Boolean = false,
     val isHideLockedAppsEnabled: Boolean = false,
     val isGuardPlayStoreAndSettings: Boolean = true,
-    val isSelfLockEnabled: Boolean = true
+    val isSelfLockEnabled: Boolean = true,
+    val lockDesignStyle: LockDesignStyle = LockDesignStyle.DYNAMIC_THUMB
 )

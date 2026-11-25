@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Flagship Samsung One UI AMOLED Dark Theme -->
+    <!-- App Lock AMOLED Dark Theme -->
     <style name="Theme.OneUIAppLock" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">#010101</item>
         <item name="android:statusBarColor">#010101</item>

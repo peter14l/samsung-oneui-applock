@@ -89,7 +89,7 @@ fun HideAppsHelpDialog(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
-                    text = "Hide Apps on Samsung",
+                    text = "Hide Apps from Launcher",
                     style = OneUITypography.titleLarge,
                     color = OneUITheme.extraColors.textPrimary
                 )
@@ -104,7 +104,7 @@ fun HideAppsHelpDialog(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // Method 1: Samsung One UI Home Native Hide
+                // Method 1: Native Launcher Hide
                 Surface(
                     shape = RoundedCornerShape(16.dp),
                     color = OneUITheme.extraColors.pillBackground,
@@ -121,7 +121,7 @@ fun HideAppsHelpDialog(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Method 1: One UI Home (No PC)",
+                                text = "Method 1: Launcher Settings (No PC)",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = OneUITheme.extraColors.textPrimary
@@ -131,7 +131,7 @@ fun HideAppsHelpDialog(
                         Spacer(modifier = Modifier.height(6.dp))
 
                         Text(
-                            text = "Samsung One UI includes a native hide apps feature in your Home Screen settings. Tap below, select 'Hide apps on Home and Apps screens', and pick your apps.",
+                            text = "Many launchers include a built-in hide apps feature in Home Screen settings. Tap below to open your launcher settings.",
                             style = OneUITypography.bodySmall,
                             color = OneUITheme.extraColors.textSecondary
                         )

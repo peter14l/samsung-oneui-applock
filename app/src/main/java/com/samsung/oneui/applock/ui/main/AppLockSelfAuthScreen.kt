@@ -97,7 +97,7 @@ fun AppLockSelfAuthScreen(
             verticalArrangement = Arrangement.Center,
             modifier = Modifier.padding(24.dp)
         ) {
-            // Samsung One UI Lock Badge
+            // App Lock Badge
             Surface(
                 modifier = Modifier.size(76.dp),
                 shape = CircleShape,
@@ -176,7 +176,7 @@ fun AppLockSelfAuthScreen(
                     )
                     Spacer(modifier = Modifier.size(8.dp))
                     Text(
-                        text = "Unlock Settings",
+                        text = "Unlock with Face / Fingerprint",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold
                     )

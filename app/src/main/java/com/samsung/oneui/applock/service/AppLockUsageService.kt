@@ -4,6 +4,7 @@ import android.app.ActivityOptions
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
@@ -17,11 +18,13 @@ import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.samsung.oneui.applock.R
 import com.samsung.oneui.applock.data.model.InterceptionEngine
 import com.samsung.oneui.applock.data.model.RelockPolicy
 import com.samsung.oneui.applock.data.pref.EncryptedPreferencesManager
 import com.samsung.oneui.applock.ui.lock.LockOverlayActivity
+import com.samsung.oneui.applock.util.PermissionHelper
 import com.samsung.oneui.applock.util.SystemPackageFilter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -102,7 +105,12 @@ class AppLockUsageService : Service() {
             addAction(Intent.ACTION_SCREEN_OFF)
             addAction(Intent.ACTION_SCREEN_ON)
         }
-        registerReceiver(screenReceiver, filter)
+        ContextCompat.registerReceiver(
+            this,
+            screenReceiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
 
         // Observe locked packages
         serviceScope.launch {
@@ -199,6 +207,10 @@ class AppLockUsageService : Service() {
     }
 
     private fun detectForegroundApp() {
+        if (!PermissionHelper.isUsageAccessGranted(this)) {
+            return
+        }
+
         val now = System.currentTimeMillis()
         val queryStart = if (lastEventTimestamp <= 0L || (now - lastEventTimestamp > 5000L)) {
             now - 2000L
@@ -252,17 +264,24 @@ class AppLockUsageService : Service() {
             prefsManager.lockPackageSession(lastForegroundPackage!!)
         }
 
-        lastForegroundPackage = eventPackage
-
         if (!masterLockEnabled || currentEngine != InterceptionEngine.USAGE_ACCESS) {
+            lastForegroundPackage = eventPackage
             return
         }
 
         if (lockedPackagesSnapshot.contains(eventPackage)) {
             if (prefsManager.isSessionUnlocked(eventPackage)) {
+                lastForegroundPackage = eventPackage
                 return
             }
+            if (!PermissionHelper.isAppearOnTopGranted(this)) {
+                Log.w(TAG, "Cannot launch lock overlay for $eventPackage: Appear on Top permission not granted")
+                return
+            }
+            lastForegroundPackage = eventPackage
             launchLockOverlay(eventPackage)
+        } else {
+            lastForegroundPackage = eventPackage
         }
     }
 
@@ -280,8 +299,16 @@ class AppLockUsageService : Service() {
                 options.setPendingIntentBackgroundActivityStartMode(
                     ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
                 )
+                val pendingIntent = PendingIntent.getActivity(
+                    this,
+                    targetPackage.hashCode(),
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                pendingIntent.send(options.toBundle())
+            } else {
+                startActivity(intent, options.toBundle())
             }
-            startActivity(intent, options.toBundle())
             Log.i(TAG, "Launched LockOverlayActivity for $targetPackage")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to launch LockOverlayActivity for $targetPackage", e)

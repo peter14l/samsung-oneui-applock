@@ -159,6 +159,10 @@ class AppLockRepository(private val context: Context) {
         prefsManager.setSelfLock(enabled)
     }
 
+    fun setLockDesignStyle(style: com.samsung.oneui.applock.data.model.LockDesignStyle) {
+        prefsManager.setLockDesignStyle(style)
+    }
+
     fun refreshState() {
         prefsManager.refreshState()
     }

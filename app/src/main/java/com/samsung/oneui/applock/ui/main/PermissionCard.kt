@@ -177,7 +177,7 @@ fun PermissionSetupCard(
                 // 5. Battery Optimization
                 PermissionItem(
                     title = "Background Protection",
-                    subtitle = "Ignore battery optimizations for 24/7 reliability",
+                    subtitle = "Set Battery Usage to Unrestricted for 24/7 reliability",
                     icon = Icons.Rounded.BatteryAlert,
                     isGranted = state.isBatteryOptimizationIgnored,
                     onClick = onEnableBatteryOptimization
@@ -186,9 +186,9 @@ fun PermissionSetupCard(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Restricted Settings Hint for Samsung / Android 13+
+            // Restricted Settings Hint for Android 13-15+
             Text(
-                text = "Tip: If accessibility is greyed out (Restricted Setting), open App Info > 3-dots > 'Allow restricted settings'. Tap here to open App Info.",
+                text = "Tip (Android 13–15+): If Usage Access, Appear on Top, or Accessibility is greyed out (Restricted Setting), open App Info > 3-dots > 'Allow restricted settings'. Also set Battery to Unrestricted. Tap here to open App Info.",
                 style = OneUITypography.bodySmall,
                 color = OneUITheme.extraColors.accentBlue,
                 modifier = Modifier

@@ -13,6 +13,7 @@ import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
+import androidx.biometric.BiometricManager
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.samsung.oneui.applock.R
@@ -200,6 +201,29 @@ object PermissionHelper {
             Uri.parse("package:${context.packageName}")
         ).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+    }
+
+    fun isBiometricEnrolled(context: Context): Boolean {
+        val biometricManager = BiometricManager.from(context)
+        val result = biometricManager.canAuthenticate(
+            BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                BiometricManager.Authenticators.BIOMETRIC_WEAK
+        )
+        return result == BiometricManager.BIOMETRIC_SUCCESS
+    }
+
+    fun getBiometricStatusLabel(context: Context): String {
+        val pm = context.packageManager
+        val hasFace = pm.hasSystemFeature(PackageManager.FEATURE_FACE)
+        val hasFingerprint = pm.hasSystemFeature(PackageManager.FEATURE_FINGERPRINT)
+        val enrolled = isBiometricEnrolled(context)
+        return when {
+            !enrolled -> "No Face/Fingerprint enrolled in device settings"
+            hasFace && hasFingerprint -> "Face & Fingerprint ready"
+            hasFace -> "Face Unlock ready"
+            hasFingerprint -> "Fingerprint ready"
+            else -> "Biometrics ready"
         }
     }
 

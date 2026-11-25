@@ -11,25 +11,35 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Face
+import androidx.compose.material.icons.rounded.Fingerprint
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -52,12 +63,14 @@ import androidx.core.graphics.drawable.toBitmap
 import androidx.core.view.WindowCompat
 import androidx.fragment.app.FragmentActivity
 import com.samsung.oneui.applock.data.model.AuthType
+import com.samsung.oneui.applock.data.model.LockDesignStyle
 import com.samsung.oneui.applock.data.pref.EncryptedPreferencesManager
 import com.samsung.oneui.applock.ui.theme.OneUIBlue
 import com.samsung.oneui.applock.ui.theme.OneUIDarkBackground
 import com.samsung.oneui.applock.ui.theme.OneUILightBackground
 import com.samsung.oneui.applock.ui.theme.OneUIPillRadius
 import com.samsung.oneui.applock.ui.theme.SamsungOneUIAppLockTheme
+import com.samsung.oneui.applock.util.PermissionHelper
 import kotlinx.coroutines.delay
 import java.util.concurrent.Executor
 
@@ -102,18 +115,27 @@ class LockOverlayActivity : FragmentActivity() {
         })
 
         setContent {
-            SamsungOneUIAppLockTheme {
-                val isDark = isSystemInDarkTheme()
-                val solidBackground = if (isDark) OneUIDarkBackground else OneUILightBackground
-                val settings = prefsManager.settingsFlow.value
+            val settings = prefsManager.settingsFlow.value
+            val designStyle = settings.lockDesignStyle
+            val isSystemDark = isSystemInDarkTheme()
+            val isDark = when (designStyle) {
+                LockDesignStyle.VAULT_DARK -> true
+                LockDesignStyle.SWISS_MONO -> isSystemDark
+                LockDesignStyle.DYNAMIC_THUMB -> isSystemDark
+            }
+            val useDynamic = designStyle == LockDesignStyle.DYNAMIC_THUMB
+
+            SamsungOneUIAppLockTheme(darkTheme = isDark, dynamicColor = useDynamic) {
+                val palette = rememberLockStylePalette(designStyle, isDark)
+                val biometricStatus = remember { PermissionHelper.getBiometricStatusLabel(this) }
 
                 // Ensure status and nav bars are fully opaque solid
                 val window = this.window
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
                     @Suppress("DEPRECATION")
-                    window.statusBarColor = if (isDark) 0xFF010101.toInt() else 0xFFF6F6F8.toInt()
+                    window.statusBarColor = palette.background.toArgb()
                     @Suppress("DEPRECATION")
-                    window.navigationBarColor = if (isDark) 0xFF010101.toInt() else 0xFFF6F6F8.toInt()
+                    window.navigationBarColor = palette.sheetBackground.toArgb()
                 }
                 WindowCompat.getInsetsController(window, window.decorView).apply {
                     isAppearanceLightStatusBars = !isDark
@@ -124,10 +146,12 @@ class LockOverlayActivity : FragmentActivity() {
                     CustomPinOverlayContent(
                         appName = targetAppName,
                         appIcon = targetAppIcon,
-                        backgroundColor = solidBackground,
+                        designStyle = designStyle,
+                        palette = palette,
                         isDark = isDark,
                         pinLength = settings.customPinLength,
                         showBiometricKey = settings.useBiometricWithCustomPin,
+                        biometricStatus = biometricStatus,
                         getLockoutSeconds = { prefsManager.getRemainingLockoutSeconds() },
                         onPinEntered = { pin ->
                             if (prefsManager.verifyCustomPin(pin)) {
@@ -148,8 +172,9 @@ class LockOverlayActivity : FragmentActivity() {
                     SystemCredentialOverlayContent(
                         appName = targetAppName,
                         appIcon = targetAppIcon,
-                        backgroundColor = solidBackground,
-                        isDark = isDark,
+                        designStyle = designStyle,
+                        palette = palette,
+                        biometricStatus = biometricStatus,
                         onUnlockClick = { triggerBiometricPrompt() }
                     )
                 }
@@ -289,14 +314,74 @@ class LockOverlayActivity : FragmentActivity() {
     }
 }
 
+private data class LockStylePalette(
+    val background: Color,
+    val sheetBackground: Color,
+    val sheetBorder: Color?,
+    val textPrimary: Color,
+    val textSecondary: Color,
+    val accent: Color,
+    val keyBg: Color,
+    val keyBorder: Color?,
+    val dotInactive: Color
+)
+
+@Composable
+private fun rememberLockStylePalette(style: LockDesignStyle, isDark: Boolean): LockStylePalette {
+    val m3 = MaterialTheme.colorScheme
+    return when (style) {
+        LockDesignStyle.DYNAMIC_THUMB -> LockStylePalette(
+            background = m3.background,
+            sheetBackground = m3.surfaceContainerLow,
+            sheetBorder = null,
+            textPrimary = m3.onBackground,
+            textSecondary = m3.onSurfaceVariant,
+            accent = m3.primary,
+            keyBg = m3.surfaceContainerHigh,
+            keyBorder = null,
+            dotInactive = m3.outlineVariant
+        )
+        LockDesignStyle.VAULT_DARK -> LockStylePalette(
+            background = Color(0xFF0B0D12),
+            sheetBackground = Color(0xFF131722),
+            sheetBorder = Color(0xFF232A3B),
+            textPrimary = Color(0xFFF5F7FA),
+            textSecondary = Color(0xFF94A3B8),
+            accent = Color(0xFF5E6AD2),
+            keyBg = Color(0xFF1B2030),
+            keyBorder = Color(0xFF2A3247),
+            dotInactive = Color(0xFF2B3245)
+        )
+        LockDesignStyle.SWISS_MONO -> {
+            val bg = if (isDark) Color(0xFF000000) else Color(0xFFFFFFFF)
+            val fg = if (isDark) Color(0xFFFFFFFF) else Color(0xFF000000)
+            val muted = if (isDark) Color(0xFFA0A0A0) else Color(0xFF5C5C5C)
+            val border = if (isDark) Color(0xFF2E2E2E) else Color(0xFFD4D4D4)
+            LockStylePalette(
+                background = bg,
+                sheetBackground = bg,
+                sheetBorder = border,
+                textPrimary = fg,
+                textSecondary = muted,
+                accent = fg,
+                keyBg = Color.Transparent,
+                keyBorder = border,
+                dotInactive = border
+            )
+        }
+    }
+}
+
 @Composable
 private fun CustomPinOverlayContent(
     appName: String,
     appIcon: Drawable?,
-    backgroundColor: Color,
+    designStyle: LockDesignStyle,
+    palette: LockStylePalette,
     isDark: Boolean,
     pinLength: Int,
     showBiometricKey: Boolean,
+    biometricStatus: String,
     getLockoutSeconds: () -> Long,
     onPinEntered: (String) -> Boolean,
     onBiometricPress: () -> Unit
@@ -331,20 +416,36 @@ private fun CustomPinOverlayContent(
         }
     }
 
-    Box(
+    val statusText = when {
+        remainingLockout > 0 -> "Too many attempts. Try again in ${remainingLockout}s"
+        isError -> "Incorrect PIN. Try again."
+        showBiometricKey -> "Enter PIN or use Face / Fingerprint"
+        else -> "Enter App PIN"
+    }
+
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(backgroundColor)
+            .background(palette.background)
             .systemBarsPadding(),
-        contentAlignment = Alignment.Center
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Upper Shield Header
         Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(horizontal = 24.dp)
+            verticalArrangement = Arrangement.Center
         ) {
-            // App Icon
-            AppSquircleIconBadge(icon = appIcon, name = appName)
+            AppSquircleIconBadge(
+                icon = appIcon,
+                name = appName,
+                designStyle = designStyle,
+                accentColor = palette.accent,
+                ringColor = palette.sheetBorder ?: palette.accent.copy(alpha = 0.25f)
+            )
 
             Spacer(modifier = Modifier.height(14.dp))
 
@@ -352,45 +453,66 @@ private fun CustomPinOverlayContent(
                 text = appName,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (isDark) Color(0xFFF5F5F7) else Color(0xFF111111)
+                color = palette.textPrimary,
+                textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
-            val statusText = when {
-                remainingLockout > 0 -> "Too many attempts. Try again in ${remainingLockout}s"
-                isError -> "Incorrect PIN. Try again."
-                else -> "Enter App PIN"
-            }
-
-            Text(
+            SecurityStatusPill(
                 text = statusText,
-                fontSize = 14.sp,
-                color = if (isError || remainingLockout > 0) Color(0xFFFF3B30) else if (isDark) Color(0xFF98989D) else Color(0xFF767676),
-                fontWeight = if (isError || remainingLockout > 0) FontWeight.SemiBold else FontWeight.Normal
+                isError = isError || remainingLockout > 0,
+                palette = palette
             )
+        }
 
-            Spacer(modifier = Modifier.height(28.dp))
+        // Bottom-Anchored Thumb-Friendly Keypad Sheet
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            color = palette.sheetBackground,
+            border = palette.sheetBorder?.let { BorderStroke(1.dp, it) }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 24.dp, bottom = 20.dp, start = 16.dp, end = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                OneUIPinKeypad(
+                    pinLength = pinLength,
+                    currentPinLength = pinInput.length,
+                    isError = isError,
+                    showBiometricKey = showBiometricKey,
+                    isDark = isDark,
+                    accentColor = palette.accent,
+                    keyBgColor = palette.keyBg,
+                    keyBorderColor = palette.keyBorder,
+                    keyTextColor = palette.textPrimary,
+                    keySubTextColor = palette.textSecondary,
+                    dotInactiveColor = palette.dotInactive,
+                    onDigitPress = { digit ->
+                        if (pinInput.length < pinLength && !isError && remainingLockout <= 0) {
+                            pinInput += digit
+                        }
+                    },
+                    onDeletePress = {
+                        if (pinInput.isNotEmpty() && !isError && remainingLockout <= 0) {
+                            pinInput = pinInput.dropLast(1)
+                        }
+                    },
+                    onBiometricPress = onBiometricPress
+                )
 
-            // One UI Pin Keypad
-            OneUIPinKeypad(
-                pinLength = pinLength,
-                currentPinLength = pinInput.length,
-                isError = isError,
-                showBiometricKey = showBiometricKey,
-                isDark = isDark,
-                onDigitPress = { digit ->
-                    if (pinInput.length < pinLength && !isError && remainingLockout <= 0) {
-                        pinInput += digit
-                    }
-                },
-                onDeletePress = {
-                    if (pinInput.isNotEmpty() && !isError && remainingLockout <= 0) {
-                        pinInput = pinInput.dropLast(1)
-                    }
-                },
-                onBiometricPress = onBiometricPress
-            )
+                if (showBiometricKey) {
+                    Text(
+                        text = biometricStatus,
+                        fontSize = 11.sp,
+                        color = palette.textSecondary,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
         }
     }
 }
@@ -399,108 +521,237 @@ private fun CustomPinOverlayContent(
 private fun SystemCredentialOverlayContent(
     appName: String,
     appIcon: Drawable?,
-    backgroundColor: Color,
-    isDark: Boolean,
+    designStyle: LockDesignStyle,
+    palette: LockStylePalette,
+    biometricStatus: String,
     onUnlockClick: () -> Unit
 ) {
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(backgroundColor)
+            .background(palette.background)
             .systemBarsPadding(),
-        contentAlignment = Alignment.Center
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(32.dp)
+            verticalArrangement = Arrangement.Center
         ) {
-            AppSquircleIconBadge(icon = appIcon, name = appName)
+            AppSquircleIconBadge(
+                icon = appIcon,
+                name = appName,
+                designStyle = designStyle,
+                accentColor = palette.accent,
+                ringColor = palette.sheetBorder ?: palette.accent.copy(alpha = 0.25f)
+            )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(22.dp))
 
             Text(
                 text = appName,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (isDark) Color(0xFFF5F5F7) else Color(0xFF111111),
+                color = palette.textPrimary,
                 textAlign = TextAlign.Center
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Text(
-                text = "Protected by Samsung One UI App Lock",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Normal,
-                color = if (isDark) Color(0xFF98989D) else Color(0xFF767676),
-                textAlign = TextAlign.Center
+            SecurityStatusPill(
+                text = "App Protected • $biometricStatus",
+                isError = false,
+                palette = palette
             )
+        }
 
-            Spacer(modifier = Modifier.height(48.dp))
-
-            // Subtle One UI Pill Unlock Button
-            Button(
-                onClick = onUnlockClick,
-                shape = RoundedCornerShape(OneUIPillRadius),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = OneUIBlue,
-                    contentColor = Color.White
-                ),
+        // Bottom-Anchored Action Sheet
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            color = palette.sheetBackground,
+            border = palette.sheetBorder?.let { BorderStroke(1.dp, it) }
+        ) {
+            Column(
                 modifier = Modifier
-                    .height(50.dp)
-                    .padding(horizontal = 24.dp)
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.Lock,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.size(8.dp))
-                Text(
-                    text = "Unlock with Biometrics",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Face,
+                        contentDescription = "Face Unlock",
+                        tint = palette.accent,
+                        modifier = Modifier.size(26.dp)
+                    )
+                    Icon(
+                        imageVector = Icons.Rounded.Fingerprint,
+                        contentDescription = "Fingerprint Unlock",
+                        tint = palette.accent,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                if (designStyle == LockDesignStyle.SWISS_MONO) {
+                    OutlinedButton(
+                        onClick = onUnlockClick,
+                        shape = RoundedCornerShape(OneUIPillRadius),
+                        border = BorderStroke(1.dp, palette.textPrimary),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Lock,
+                            contentDescription = null,
+                            tint = palette.textPrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Unlock with Face / Fingerprint",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = palette.textPrimary
+                        )
+                    }
+                } else {
+                    Button(
+                        onClick = onUnlockClick,
+                        shape = RoundedCornerShape(OneUIPillRadius),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = palette.accent,
+                            contentColor = Color.White
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Lock,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Unlock with Face / Fingerprint",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun AppSquircleIconBadge(icon: Drawable?, name: String) {
-    if (icon != null) {
-        val bitmap = remember(icon) {
-            try {
-                icon.toBitmap(width = 160, height = 160).asImageBitmap()
-            } catch (e: Exception) {
-                null
-            }
-        }
-        if (bitmap != null) {
-            Image(
-                bitmap = bitmap,
-                contentDescription = name,
-                modifier = Modifier
-                    .size(76.dp)
-                    .clip(RoundedCornerShape(20.dp))
+private fun SecurityStatusPill(
+    text: String,
+    isError: Boolean,
+    palette: LockStylePalette
+) {
+    val errorRed = Color(0xFFFF3B30)
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = if (isError) errorRed.copy(alpha = 0.14f) else palette.accent.copy(alpha = 0.10f),
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (isError) errorRed.copy(alpha = 0.4f) else palette.accent.copy(alpha = 0.22f)
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Shield,
+                contentDescription = null,
+                tint = if (isError) errorRed else palette.accent,
+                modifier = Modifier.size(14.dp)
             )
-            return
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = text,
+                fontSize = 12.sp,
+                fontWeight = if (isError) FontWeight.SemiBold else FontWeight.Medium,
+                color = if (isError) errorRed else palette.textSecondary,
+                textAlign = TextAlign.Center
+            )
         }
     }
+}
 
-    Surface(
-        modifier = Modifier.size(76.dp),
-        shape = CircleShape,
-        color = OneUIBlue.copy(alpha = 0.15f)
+@Composable
+private fun AppSquircleIconBadge(
+    icon: Drawable?,
+    name: String,
+    designStyle: LockDesignStyle,
+    accentColor: Color,
+    ringColor: Color
+) {
+    val ringModifier = when (designStyle) {
+        LockDesignStyle.VAULT_DARK -> Modifier
+            .size(96.dp)
+            .clip(RoundedCornerShape(26.dp))
+            .background(accentColor.copy(alpha = 0.12f))
+            .border(1.5.dp, accentColor.copy(alpha = 0.55f), RoundedCornerShape(26.dp))
+        LockDesignStyle.SWISS_MONO -> Modifier
+            .size(92.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .border(1.dp, ringColor, RoundedCornerShape(22.dp))
+        LockDesignStyle.DYNAMIC_THUMB -> Modifier
+            .size(92.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(accentColor.copy(alpha = 0.10f))
+    }
+
+    Box(
+        modifier = ringModifier,
+        contentAlignment = Alignment.Center
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                imageVector = Icons.Rounded.Lock,
-                contentDescription = null,
-                tint = OneUIBlue,
-                modifier = Modifier.size(36.dp)
-            )
+        if (icon != null) {
+            val bitmap = remember(icon) {
+                try {
+                    icon.toBitmap(width = 160, height = 160).asImageBitmap()
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap,
+                    contentDescription = name,
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                )
+                return
+            }
+        }
+
+        Surface(
+            modifier = Modifier.size(72.dp),
+            shape = CircleShape,
+            color = accentColor.copy(alpha = 0.15f)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Rounded.Lock,
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(34.dp)
+                )
+            }
         }
     }
 }

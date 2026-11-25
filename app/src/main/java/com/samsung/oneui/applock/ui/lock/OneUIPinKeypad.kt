@@ -7,6 +7,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -52,7 +53,13 @@ fun OneUIPinKeypad(
     onDigitPress: (String) -> Unit,
     onDeletePress: () -> Unit,
     onBiometricPress: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    accentColor: Color = OneUIBlue,
+    keyBgColor: Color = if (isDark) Color(0xFF1E1E20) else Color(0xFFEAEAEE),
+    keyBorderColor: Color? = null,
+    keyTextColor: Color = if (isDark) Color(0xFFF5F5F7) else Color(0xFF111111),
+    keySubTextColor: Color = if (isDark) Color(0xFF8E8E93) else Color(0xFF767676),
+    dotInactiveColor: Color = if (isDark) Color(0xFF2C2C2E) else Color(0xFFD1D1D6)
 ) {
     val view = LocalView.current
 
@@ -83,9 +90,8 @@ fun OneUIPinKeypad(
                 val dotColor by animateColorAsState(
                     targetValue = when {
                         isError -> OneUIRed
-                        isFilled -> OneUIBlue
-                        isDark -> Color(0xFF2C2C2E)
-                        else -> Color(0xFFD1D1D6)
+                        isFilled -> accentColor
+                        else -> dotInactiveColor
                     },
                     animationSpec = spring(stiffness = Spring.StiffnessMedium)
                 )
@@ -98,12 +104,9 @@ fun OneUIPinKeypad(
             }
         }
 
-        Spacer(modifier = Modifier.height(36.dp))
+        Spacer(modifier = Modifier.height(28.dp))
 
         // 3x4 Keypad Layout
-        val keyBgColor = if (isDark) Color(0xFF1E1E20) else Color(0xFFEAEAEE)
-        val keyTextColor = if (isDark) Color(0xFFF5F5F7) else Color(0xFF111111)
-        val keySubTextColor = if (isDark) Color(0xFF8E8E93) else Color(0xFF767676)
 
         val keys = listOf(
             listOf("1" to "", "2" to "ABC", "3" to "DEF"),
@@ -125,19 +128,20 @@ fun OneUIPinKeypad(
                                     icon = {
                                         Icon(
                                             imageVector = Icons.Rounded.Fingerprint,
-                                            contentDescription = "Biometric",
-                                            tint = OneUIBlue,
-                                            modifier = Modifier.size(32.dp)
+                                            contentDescription = "Face or Fingerprint",
+                                            tint = accentColor,
+                                            modifier = Modifier.size(30.dp)
                                         )
                                     },
-                                    bgColor = OneUIBlue.copy(alpha = 0.12f),
+                                    bgColor = accentColor.copy(alpha = 0.14f),
+                                    borderColor = keyBorderColor,
                                     onClick = {
                                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                         onBiometricPress()
                                     }
                                 )
                             } else {
-                                Spacer(modifier = Modifier.size(76.dp))
+                                Spacer(modifier = Modifier.size(74.dp))
                             }
                         }
                         "DEL" -> {
@@ -151,6 +155,7 @@ fun OneUIPinKeypad(
                                     )
                                 },
                                 bgColor = Color.Transparent,
+                                borderColor = null,
                                 onClick = {
                                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                     onDeletePress()
@@ -162,6 +167,7 @@ fun OneUIPinKeypad(
                                 digit = key.first,
                                 letters = key.second,
                                 bgColor = keyBgColor,
+                                borderColor = keyBorderColor,
                                 textColor = keyTextColor,
                                 subTextColor = keySubTextColor,
                                 onClick = {
@@ -184,15 +190,20 @@ private fun KeypadDigitButton(
     digit: String,
     letters: String,
     bgColor: Color,
+    borderColor: Color?,
     textColor: Color,
     subTextColor: Color,
     onClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
-            .size(76.dp)
+            .size(74.dp)
             .clip(CircleShape)
             .background(bgColor)
+            .then(
+                if (borderColor != null) Modifier.border(1.dp, borderColor, CircleShape)
+                else Modifier
+            )
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = androidx.compose.material3.ripple(bounded = true),
@@ -225,13 +236,18 @@ private fun KeypadDigitButton(
 private fun KeypadIconButton(
     icon: @Composable () -> Unit,
     bgColor: Color,
+    borderColor: Color?,
     onClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
-            .size(76.dp)
+            .size(74.dp)
             .clip(CircleShape)
             .background(bgColor)
+            .then(
+                if (borderColor != null) Modifier.border(1.dp, borderColor, CircleShape)
+                else Modifier
+            )
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = androidx.compose.material3.ripple(bounded = true),

@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">App Lock</string>
     <string name="accessibility_service_name">App Lock Interception Service</string>
-    <string name="accessibility_service_description">Monitors foreground app launches to protect designated applications with Samsung native biometric security.</string>
+    <string name="accessibility_service_description">Monitors foreground app launches to protect designated applications with native biometric security.</string>
     <string name="notification_guard_service_name">App Lock Notification Guard</string>
     <string name="notification_guard_service_description">Masks sensitive notification content on lock screen and status bar for protected apps.</string>
     <string name="notification_channel_name">App Lock Alerts</string>
